@@ -3,6 +3,8 @@ package com.example.kucharz2.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -182,14 +185,15 @@ class IngredientInputViewModel @Inject constructor(
 
     fun search(onSuccess: () -> Unit) {
         addIngredient()
-        val state = uiState.value
-        if (state.ingredients.isEmpty() && state.pantryIngredients.isEmpty()) {
+        val ingredients = editableState.value.ingredients
+        val hasPantryIngredients = uiState.value.pantryIngredients.isNotEmpty()
+        if (ingredients.isEmpty() && !hasPantryIngredients) {
             editableState.update { it.copy(error = "Dodaj przynajmniej jeden składnik albo stały składnik.") }
             return
         }
         viewModelScope.launch {
             editableState.update { it.copy(loading = true, error = null) }
-            runCatching { repository.refreshRecipes(uiState.value.ingredients) }
+            runCatching { repository.refreshRecipes(ingredients) }
                 .onSuccess {
                     editableState.update { it.copy(loading = false) }
                     onSuccess()
@@ -632,6 +636,7 @@ private fun HeaderCard(title: String, subtitle: String) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IngredientChips(title: String, items: List<String>, emptyText: String, onRemove: ((String) -> Unit)?) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -639,12 +644,24 @@ private fun IngredientChips(title: String, items: List<String>, emptyText: Strin
         if (items.isEmpty()) {
             Text(emptyText, style = MaterialTheme.typography.bodyMedium)
         } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(items) { item ->
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items.forEach { item ->
                     FilterChip(
                         selected = true,
+                        modifier = Modifier.widthIn(max = 220.dp),
                         onClick = { onRemove?.invoke(item) },
-                        label = { Text(if (onRemove == null) item else "$item  ×") }
+                        label = {
+                            Text(
+                                text = if (onRemove == null) item else "$item  ×",
+                                softWrap = true,
+                                maxLines = 3,
+                                overflow = TextOverflow.Visible
+                            )
+                        }
                     )
                 }
             }
