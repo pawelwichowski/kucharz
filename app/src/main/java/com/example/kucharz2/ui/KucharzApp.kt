@@ -35,12 +35,16 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -73,8 +77,7 @@ import javax.inject.Inject
 
 private sealed class Screen(val route: String, val label: String, val icon: String) {
     data object Ingredients : Screen("ingredients", "Składniki", "🥕")
-    data object Recipes : Screen("recipes", "Pasujące", "🍲")
-    data object Missing : Screen("missing", "Brakuje", "🛒")
+    data object Recipes : Screen("recipes", "Przepisy", "🍲")
     data object Shopping : Screen("shopping", "Zakupy", "✅")
     data object Pantry : Screen("pantry", "Stałe", "🧂")
     data object History : Screen("history", "Historia", "🕘")
@@ -83,7 +86,6 @@ private sealed class Screen(val route: String, val label: String, val icon: Stri
 private val bottomScreens = listOf(
     Screen.Ingredients,
     Screen.Recipes,
-    Screen.Missing,
     Screen.Shopping,
     Screen.Pantry,
     Screen.History
@@ -134,7 +136,6 @@ fun KucharzApp(navController: NavHostController = rememberNavController()) {
                 IngredientInputScreen(onSearchFinished = { navController.navigate(Screen.Recipes.route) })
             }
             composable(Screen.Recipes.route) { RecipeResultsScreen() }
-            composable(Screen.Missing.route) { MissingRecipesScreen() }
             composable(Screen.Shopping.route) { ShoppingListScreen() }
             composable(Screen.Pantry.route) { PantryScreen() }
             composable(Screen.History.route) { HistoryScreen() }
@@ -277,41 +278,8 @@ class RecipeResultsViewModel @Inject constructor(
     private val repository: RecipeRepository
 ) : ViewModel() {
     val recipes = repository.exactRecipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val nearRecipes = repository.nearRecipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val availableIngredients = repository.availableIngredients.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    private val _selectedRecipe = MutableStateFlow<Recipe?>(null)
-    val selectedRecipe: StateFlow<Recipe?> = _selectedRecipe
-
-    fun openRecipe(recipe: Recipe) {
-        _selectedRecipe.value = recipe
-        viewModelScope.launch { repository.addToHistory(recipe) }
-    }
-
-    fun closeRecipe() { _selectedRecipe.value = null }
-}
-
-@Composable
-private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
-    val recipes by viewModel.recipes.collectAsState()
-    val available by viewModel.availableIngredients.collectAsState()
-    val selected by viewModel.selectedRecipe.collectAsState()
-
-    RecipeListContent(
-        title = "Pasujące przepisy",
-        subtitle = if (available.isEmpty()) "Najpierw wyszukaj po składnikach." else "Składniki: ${available.joinToString()}",
-        emptyText = "Nie znaleziono przepisów, do których masz wszystkie składniki.",
-        recipes = recipes,
-        onOpen = viewModel::openRecipe,
-        onAddMissing = null
-    )
-
-    selected?.let { RecipeDetailsDialog(recipe = it, onDismiss = viewModel::closeRecipe) }
-}
-
-@HiltViewModel
-class MissingRecipesViewModel @Inject constructor(
-    private val repository: RecipeRepository
-) : ViewModel() {
-    val recipes = repository.nearRecipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _selectedRecipe = MutableStateFlow<Recipe?>(null)
     val selectedRecipe: StateFlow<Recipe?> = _selectedRecipe
     private val _message = MutableStateFlow<String?>(null)
@@ -335,24 +303,77 @@ class MissingRecipesViewModel @Inject constructor(
 }
 
 @Composable
-private fun MissingRecipesScreen(viewModel: MissingRecipesViewModel = hiltViewModel()) {
-    val recipes by viewModel.recipes.collectAsState()
+private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
+    val exactRecipes by viewModel.recipes.collectAsState()
+    val nearRecipes by viewModel.nearRecipes.collectAsState()
+    val available by viewModel.availableIngredients.collectAsState()
     val selected by viewModel.selectedRecipe.collectAsState()
     val message by viewModel.message.collectAsState()
+    var showMissingRecipes by rememberSaveable { mutableStateOf(false) }
+
+    val visibleRecipes = if (showMissingRecipes) {
+        (exactRecipes + nearRecipes).distinctBy { it.id }
+    } else {
+        exactRecipes
+    }
 
     Column(Modifier.fillMaxSize()) {
         message?.let {
             SuccessCard(message = it, onDismiss = viewModel::clearMessage)
         }
-        Box(Modifier.weight(1f)) {
-            RecipeListContent(
-                title = "Przepisy, gdzie brakuje 1–2 składników",
-                subtitle = "Brakujące składniki możesz od razu dodać do listy zakupów.",
-                emptyText = "Brak propozycji z jednym lub dwoma brakującymi składnikami.",
-                recipes = recipes,
-                onOpen = viewModel::openRecipe,
-                onAddMissing = viewModel::addMissingToShopping
-            )
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                HeaderCard(
+                    title = "Przepisy",
+                    subtitle = if (available.isEmpty()) "Najpierw wyszukaj po składnikach." else "Składniki: ${available.joinToString()}"
+                )
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Pokazuj też przepisy, gdzie brakuje składników",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Switch(
+                            checked = showMissingRecipes,
+                            onCheckedChange = { showMissingRecipes = it }
+                        )
+                    }
+                }
+            }
+            if (visibleRecipes.isEmpty()) {
+                item {
+                    EmptyState(
+                        if (showMissingRecipes) {
+                            "Nie znaleziono przepisów pasujących ani takich, gdzie brakuje 1–2 składników."
+                        } else {
+                            "Nie znaleziono przepisów, do których masz wszystkie składniki."
+                        }
+                    )
+                }
+            } else {
+                items(visibleRecipes, key = { it.id }) { recipe ->
+                    RecipeCard(
+                        recipe = recipe,
+                        onOpen = { viewModel.openRecipe(recipe) },
+                        onAddMissing = if (recipe.missingIngredients.isNotEmpty()) {
+                            { viewModel.addMissingToShopping(recipe) }
+                        } else {
+                            null
+                        }
+                    )
+                }
+            }
         }
     }
 
@@ -572,8 +593,8 @@ private fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onAddMissing: (() -> 
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpen) { Text("Szczegóły") }
-                onAddMissing?.let {
-                    OutlinedButton(onClick = it) { Text("Dodaj braki") }
+                if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
+                    OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
                 }
             }
         }
