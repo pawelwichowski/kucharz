@@ -61,10 +61,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.kucharz2.data.PantryIngredientEntity
 import com.example.kucharz2.data.Recipe
-import com.example.kucharz2.data.RecipeHistoryEntity
 import com.example.kucharz2.data.RecipeRepository
 import com.example.kucharz2.data.ShoppingItemEntity
-import com.example.kucharz2.data.toRecipe
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -80,7 +78,7 @@ private sealed class Screen(val route: String, val label: String, val icon: Stri
     data object Recipes : Screen("recipes", "Przepisy", "🍲")
     data object Shopping : Screen("shopping", "Zakupy", "✅")
     data object Pantry : Screen("pantry", "Stałe", "🧂")
-    data object History : Screen("history", "Historia", "🕘")
+    data object Settings : Screen("settings", "Ustawienia", "⚙️")
 }
 
 private val bottomScreens = listOf(
@@ -88,12 +86,16 @@ private val bottomScreens = listOf(
     Screen.Recipes,
     Screen.Shopping,
     Screen.Pantry,
-    Screen.History
+    Screen.Settings
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KucharzApp(navController: NavHostController = rememberNavController()) {
+fun KucharzApp(
+    isDarkTheme: Boolean = false,
+    onDarkThemeChange: (Boolean) -> Unit = {},
+    navController: NavHostController = rememberNavController()
+) {
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route ?: Screen.Ingredients.route
 
@@ -138,7 +140,12 @@ fun KucharzApp(navController: NavHostController = rememberNavController()) {
             composable(Screen.Recipes.route) { RecipeResultsScreen() }
             composable(Screen.Shopping.route) { ShoppingListScreen() }
             composable(Screen.Pantry.route) { PantryScreen() }
-            composable(Screen.History.route) { HistoryScreen() }
+            composable(Screen.Settings.route) {
+                SettingsScreen(
+                    isDarkTheme = isDarkTheme,
+                    onDarkThemeChange = onDarkThemeChange
+                )
+            }
         }
     }
 }
@@ -506,65 +513,41 @@ private fun PantryScreen(viewModel: PantryViewModel = hiltViewModel()) {
     }
 }
 
-@HiltViewModel
-class HistoryViewModel @Inject constructor(
-    private val repository: RecipeRepository
-) : ViewModel() {
-    val history = repository.observeHistory().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    private val _selectedRecipe = MutableStateFlow<Recipe?>(null)
-    val selectedRecipe: StateFlow<Recipe?> = _selectedRecipe
-
-    fun open(item: RecipeHistoryEntity) { _selectedRecipe.value = item.toRecipe() }
-    fun close() { _selectedRecipe.value = null }
-    fun clear() = viewModelScope.launch { repository.clearHistory() }
-}
-
 @Composable
-private fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
-    val history by viewModel.history.collectAsState()
-    val selected by viewModel.selectedRecipe.collectAsState()
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item { HeaderCard("Historia przepisów", "Tutaj zapisują się przepisy otwarte w szczegółach.") }
-        item {
-            OutlinedButton(onClick = viewModel::clear, enabled = history.isNotEmpty()) { Text("Wyczyść historię") }
-        }
-        if (history.isEmpty()) {
-            item { EmptyState("Historia jest pusta.") }
-        } else {
-            items(history, key = { it.recipeId }) { item ->
-                RecipeHistoryCard(item = item, onOpen = { viewModel.open(item) })
-            }
-        }
-    }
-
-    selected?.let { RecipeDetailsDialog(recipe = it, onDismiss = viewModel::close) }
-}
-
-@Composable
-private fun RecipeListContent(
-    title: String,
-    subtitle: String,
-    emptyText: String,
-    recipes: List<Recipe>,
-    onOpen: (Recipe) -> Unit,
-    onAddMissing: ((Recipe) -> Unit)?
+private fun SettingsScreen(
+    isDarkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { HeaderCard(title, subtitle) }
-        if (recipes.isEmpty()) {
-            item { EmptyState(emptyText) }
-        } else {
-            items(recipes, key = { it.id }) { recipe ->
-                RecipeCard(recipe = recipe, onOpen = { onOpen(recipe) }, onAddMissing = onAddMissing?.let { { it(recipe) } })
+        item {
+            HeaderCard(
+                title = "Ustawienia",
+                subtitle = "Dodatkowe opcje aplikacji."
+            )
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Tryb ciemny", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (isDarkTheme) "Aplikacja używa ciemnego motywu." else "Aplikacja używa jasnego motywu.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Switch(
+                        checked = isDarkTheme,
+                        onCheckedChange = onDarkThemeChange
+                    )
+                }
             }
         }
     }
@@ -597,17 +580,6 @@ private fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onAddMissing: (() -> 
                     OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun RecipeHistoryCard(item: RecipeHistoryEntity, onOpen: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("Składników: ${item.ingredients.size}", style = MaterialTheme.typography.bodyMedium)
-            Button(onClick = onOpen) { Text("Otwórz") }
         }
     }
 }
