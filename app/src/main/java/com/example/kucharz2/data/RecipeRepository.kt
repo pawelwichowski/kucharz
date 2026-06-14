@@ -31,7 +31,7 @@ class RecipeRepository @Inject constructor(
     fun observePantryIngredients() = dao.observePantryIngredients()
     fun observeHistory() = dao.observeHistory()
 
-    suspend fun refreshRecipes(userIngredients: List<String>, limit: Int = 100) = withContext(Dispatchers.IO) {
+    suspend fun refreshRecipes(userIngredients: List<String>, limit: Int = 20) = withContext(Dispatchers.IO) {
         val pantry = dao.getPantryIngredientsOnce().map { it.name }
         val available = normalizeInput(userIngredients + pantry)
         _availableIngredients.value = available
