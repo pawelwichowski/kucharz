@@ -25,14 +25,14 @@ import com.example.kucharz2.ui.saved.SavedRecipesScreen
 import com.example.kucharz2.ui.settings.SettingsScreen
 import com.example.kucharz2.ui.shopping.ShoppingListScreen
 
-private sealed class Screen(val route: String, val label: String, val icon: String) {
-    data object Ingredients : Screen("ingredients", "Składniki", "🥕")
-    data object Recipes : Screen("recipes", "Przepisy", "🍲")
-    data object Shopping : Screen("shopping", "Zakupy", "✅")
-    data object History : Screen("history", "Zapisane", "⭐")
-    data object Pantry : Screen("pantry", "Stałe", "🧂")
-    data object PermanentExclusions : Screen("permanent_exclusions", "Wykluczenia", "🚫")
-    data object Settings : Screen("settings", "Ustawienia", "⚙️")
+private sealed class Screen(val route: String, val label: String, val icon: String, val title: String = label) {
+    data object Ingredients : Screen("ingredients", "Składniki", "🥕", "Wybór składników")
+    data object Recipes : Screen("recipes", "Przepisy", "🍲", "Przepisy")
+    data object Shopping : Screen("shopping", "Zakupy", "✅", "Lista zakupów")
+    data object History : Screen("history", "Zapisane", "⭐", "Zapisane przepisy")
+    data object Pantry : Screen("pantry", "Stałe", "🧂", "Stałe składniki")
+    data object PermanentExclusions : Screen("permanent_exclusions", "Wykluczenia", "🚫", "Stałe wykluczenia")
+    data object Settings : Screen("settings", "Ustawienia", "⚙️", "Ustawienia")
 }
 
 private val bottomScreens = listOf(
@@ -40,6 +40,16 @@ private val bottomScreens = listOf(
     Screen.Recipes,
     Screen.Shopping,
     Screen.History,
+    Screen.Settings
+)
+
+private val allScreens = listOf(
+    Screen.Ingredients,
+    Screen.Recipes,
+    Screen.Shopping,
+    Screen.History,
+    Screen.Pantry,
+    Screen.PermanentExclusions,
     Screen.Settings
 )
 
@@ -52,9 +62,10 @@ fun KucharzApp(
 ) {
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route ?: Screen.Ingredients.route
+    val currentTitle = allScreens.firstOrNull { it.route == currentRoute }?.title ?: "Kucharz"
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Kucharz", fontWeight = FontWeight.Bold) }) },
+        topBar = { TopAppBar(title = { Text(currentTitle, fontWeight = FontWeight.Bold) }) },
         bottomBar = {
             NavigationBar {
                 bottomScreens.forEach { screen ->
