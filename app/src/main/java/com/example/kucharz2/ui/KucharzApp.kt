@@ -47,6 +47,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,6 +61,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import coil.compose.AsyncImage
 import com.example.kucharz2.data.PantryIngredientEntity
 import com.example.kucharz2.data.Recipe
 import com.example.kucharz2.data.RecipeHistoryEntity
@@ -721,29 +724,49 @@ private fun RecipeCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(recipe.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                text = if (recipe.ingredients.isEmpty()) "Brak listy składników w odpowiedzi API." else recipe.ingredients.take(4).joinToString(),
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (recipe.missingCount > 0) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(recipe.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    text = "Brakuje: ${recipe.missingIngredients.joinToString()}",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
+                    text = if (recipe.ingredients.isEmpty()) "Brak listy składników w odpowiedzi API." else recipe.ingredients.take(4).joinToString(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
+                if (recipe.missingCount > 0) {
+                    Text(
+                        text = "Brakuje: ${recipe.missingIngredients.joinToString()}",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onOpen) { Text("Szczegóły") }
+                    OutlinedButton(onClick = onSave, enabled = !isSaved) {
+                        Text(if (isSaved) "Zapisany" else "Zapisz")
+                    }
+                    if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
+                        OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
+                    }
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onOpen) { Text("Szczegóły") }
-                OutlinedButton(onClick = onSave, enabled = !isSaved) {
-                    Text(if (isSaved) "Zapisany" else "Zapisz")
-                }
-                if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
-                    OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
-                }
+            recipe.imageUrl?.let { imageUrl ->
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Zdjęcie przepisu ${recipe.title}",
+                    modifier = Modifier
+                        .width(104.dp)
+                        .height(104.dp)
+                        .clip(MaterialTheme.shapes.medium),
+                    contentScale = ContentScale.Crop
+                )
             }
         }
     }
