@@ -25,7 +25,7 @@ data class RecipeFilters(
     val maxIngredients: Int? = null,
     val minRatingTag: String? = null,
     val readyTimeTag: String? = null,
-    val usedIngredientsSortMode: UsedIngredientsSortMode? = null
+    val usedIngredientsSortMode: UsedIngredientsSortMode? = UsedIngredientsSortMode.MOST_USED
 ) {
     val hasActiveFilters: Boolean
         get() = mainIngredient != null ||
@@ -38,7 +38,7 @@ data class RecipeFilters(
             maxIngredients != null ||
             minRatingTag != null ||
             readyTimeTag != null ||
-            usedIngredientsSortMode != null
+            usedIngredientsSortMode != UsedIngredientsSortMode.MOST_USED
 
     fun categoryNames(): String = listOfNotNull(
         mealTypeTag,
