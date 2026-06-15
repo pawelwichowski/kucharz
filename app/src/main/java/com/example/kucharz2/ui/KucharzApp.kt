@@ -160,9 +160,14 @@ fun KucharzApp(
     }
 }
 
+private data class SelectedIngredient(
+    val name: String,
+    val required: Boolean = false
+)
+
 data class IngredientInputUiState(
     val input: String = "",
-    val ingredients: List<String> = emptyList(),
+    val ingredients: List<SelectedIngredient> = emptyList(),
     val pantryIngredients: List<String> = emptyList(),
     val includePantryIngredients: Boolean = true,
     val error: String? = null
@@ -193,13 +198,24 @@ class IngredientInputViewModel @Inject constructor(
             .filter { it.isNotBlank() }
         if (names.isEmpty()) return
         editableState.update { state ->
-            val merged = (state.ingredients + names).distinctBy { it.lowercase() }
+            val currentByName = state.ingredients.associateBy { it.name.lowercase() }
+            val added = names.map { name -> currentByName[name.lowercase()] ?: SelectedIngredient(name = name) }
+            val merged = (state.ingredients + added).distinctBy { it.name.lowercase() }
             state.copy(input = "", ingredients = merged, error = null)
         }
     }
 
     fun removeIngredient(name: String) = editableState.update { state ->
-        state.copy(ingredients = state.ingredients - name)
+        state.copy(ingredients = state.ingredients.filterNot { it.name == name })
+    }
+
+    fun toggleIngredientRequired(name: String, required: Boolean) = editableState.update { state ->
+        state.copy(
+            ingredients = state.ingredients.map { ingredient ->
+                if (ingredient.name == name) ingredient.copy(required = required) else ingredient
+            },
+            error = null
+        )
     }
 
     fun clearIngredients() = editableState.update { it.copy(ingredients = emptyList()) }
@@ -213,14 +229,16 @@ class IngredientInputViewModel @Inject constructor(
     fun search() {
         addIngredient()
         val state = editableState.value
-        val ingredients = state.ingredients
+        val availableIngredients = state.ingredients.map { it.name }
+        val requiredIngredients = state.ingredients.filter { it.required }.map { it.name }
         val hasPantryIngredients = uiState.value.pantryIngredients.isNotEmpty()
-        if (ingredients.isEmpty() && (!state.includePantryIngredients || !hasPantryIngredients)) {
+        if (availableIngredients.isEmpty() && (!state.includePantryIngredients || !hasPantryIngredients)) {
             editableState.update { it.copy(error = "Dodaj przynajmniej jeden składnik albo włącz stałe składniki.") }
             return
         }
         repository.refreshRecipesInBackground(
-            userIngredients = ingredients,
+            userIngredients = availableIngredients,
+            requiredIngredients = requiredIngredients,
             limit = 20,
             includePantryIngredients = state.includePantryIngredients
         )
@@ -243,7 +261,7 @@ private fun IngredientInputScreen(
         item {
             HeaderCard(
                 title = "Co masz w lodówce?",
-                subtitle = "Wpisz składniki po przecinku albo dodawaj je pojedynczo. Stałe składniki mogą być doliczane automatycznie."
+                subtitle = "Wpisz składniki po przecinku albo dodawaj je pojedynczo. Zaznacz checkbox Wymagany przy składniku, który musi wystąpić w przepisie."
             )
         }
         item {
@@ -261,10 +279,9 @@ private fun IngredientInputScreen(
             }
         }
         item {
-            IngredientChips(
-                title = "Wybrane składniki",
-                items = state.ingredients,
-                emptyText = "Brak składników z lodówki.",
+            SelectedIngredientCards(
+                ingredients = state.ingredients,
+                onRequiredChange = viewModel::toggleIngredientRequired,
                 onRemove = viewModel::removeIngredient
             )
         }
@@ -279,7 +296,7 @@ private fun IngredientInputScreen(
                         Text("Uwzględnij stałe składniki", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Text(
                             text = if (state.includePantryIngredients) {
-                                "Stałe składniki zostaną dodane do wyszukiwania."
+                                "Stałe składniki zostaną dodane do available."
                             } else {
                                 "Wyszukiwanie użyje tylko składników wpisanych powyżej."
                             },
@@ -295,7 +312,7 @@ private fun IngredientInputScreen(
         }
         item {
             IngredientChips(
-                title = if (state.includePantryIngredients) "Stałe składniki uwzględniane w szukaniu" else "Stałe składniki pomijane w szukaniu",
+                title = if (state.includePantryIngredients) "Stałe składniki dodawane do available" else "Stałe składniki pomijane w szukaniu",
                 items = state.pantryIngredients,
                 emptyText = "Dodaj stałe składniki w zakładce Ustawienia.",
                 onRemove = null
@@ -408,7 +425,7 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
             item {
                 HeaderCard(
                     title = if (showMissingRecipes) "Przepisy z brakującymi składnikami" else "Pełne przepisy",
-                    subtitle = if (available.isEmpty()) "Najpierw wyszukaj po składnikach." else "Składniki: ${available.joinToString()}"
+                    subtitle = if (available.isEmpty()) "Najpierw wyszukaj po składnikach." else "Available: ${available.joinToString()}"
                 )
             }
             item {
@@ -550,7 +567,7 @@ private fun ShoppingListScreen(viewModel: ShoppingListViewModel = hiltViewModel(
                         modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(checked = item.checked, onCheckedChange = { viewModel.setChecked(item, it) })
+                        Checkbox(checked = item.checked, onCheckedChange = { viewModel.setShoppingChecked(item, it) })
                         Text(item.name, modifier = Modifier.weight(1f))
                         TextButton(onClick = { viewModel.deleteItem(item) }) { Text("Usuń") }
                     }
@@ -846,6 +863,45 @@ private fun HeaderCard(title: String, subtitle: String) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun SelectedIngredientCards(
+    ingredients: List<SelectedIngredient>,
+    onRequiredChange: (String, Boolean) -> Unit,
+    onRemove: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionTitle("Wybrane składniki")
+        if (ingredients.isEmpty()) {
+            Text("Brak składników z lodówki.", style = MaterialTheme.typography.bodyMedium)
+        } else {
+            ingredients.forEach { ingredient ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = ingredient.name,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = ingredient.required,
+                                onCheckedChange = { onRequiredChange(ingredient.name, it) }
+                            )
+                            Text("Wymagany", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        TextButton(onClick = { onRemove(ingredient.name) }) { Text("Usuń") }
+                    }
+                }
+            }
         }
     }
 }
