@@ -13,12 +13,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.example.kucharz2.data.Recipe
 import com.example.kucharz2.ui.components.SectionTitle
 
 @Composable
 fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
+    val uriHandler = LocalUriHandler.current
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(recipe.title) },
@@ -29,7 +32,12 @@ fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
             ) {
                 if (recipe.tags.isNotEmpty()) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(recipe.tags) { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
+                        items(recipe.tags) { tag ->
+                            AssistChip(
+                                onClick = { recipe.sourceUrl?.let(uriHandler::openUri) },
+                                label = { Text(tag) }
+                            )
+                        }
                     }
                 }
                 if (recipe.missingIngredients.isNotEmpty()) {
@@ -40,9 +48,6 @@ fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
                     SectionTitle("Składniki z wyniku")
                     recipe.ingredients.forEach { Text("• $it") }
                 }
-                SectionTitle("Pełny przepis")
-                Text("Supercook zwraca link do strony z przepisem, a nie pełną instrukcję przygotowania w aplikacji.")
-                recipe.sourceUrl?.let { Text("Źródło: $it", style = MaterialTheme.typography.bodySmall) }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Zamknij") } }
