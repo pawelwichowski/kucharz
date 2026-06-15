@@ -28,10 +28,10 @@ import com.example.kucharz2.ui.shopping.ShoppingListScreen
 private sealed class Screen(val route: String, val label: String, val icon: String, val title: String = label) {
     data object Ingredients : Screen("ingredients", "Składniki", "🥕", "Wybór składników")
     data object Recipes : Screen("recipes", "Przepisy", "🍲", "Przepisy")
-    data object Shopping : Screen("shopping", "Zakupy", "✅", "Lista zakupów")
+    data object Shopping : Screen("shopping", "Zakupy", "🛒", "Lista zakupów")
     data object History : Screen("history", "Zapisane", "⭐", "Zapisane przepisy")
-    data object Pantry : Screen("pantry", "Stałe", "🧂", "Stałe składniki")
-    data object PermanentExclusions : Screen("permanent_exclusions", "Wykluczenia", "🚫", "Stałe wykluczenia")
+    data object Pantry : Screen("pantry", "Spiżarnia", "🧂", "Spiżarnia")
+    data object PermanentExclusions : Screen("permanent_exclusions", "Niechciane", "🚫", "Niechciane")
     data object Settings : Screen("settings", "Ustawienia", "⚙️", "Ustawienia")
 }
 
