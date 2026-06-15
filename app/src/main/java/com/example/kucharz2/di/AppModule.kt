@@ -2,6 +2,8 @@ package com.example.kucharz2.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.kucharz2.BuildConfig
 import com.example.kucharz2.data.KucharzDao
 import com.example.kucharz2.data.KucharzDatabase
@@ -19,6 +21,26 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+
+private val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS permanent_excluded_ingredients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS index_permanent_excluded_ingredients_name
+            ON permanent_excluded_ingredients(name)
+            """.trimIndent()
+        )
+    }
+}
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -59,7 +81,9 @@ object AppModule {
         context,
         KucharzDatabase::class.java,
         "kucharz.db"
-    ).build()
+    )
+        .addMigrations(MIGRATION_1_2)
+        .build()
 
     @Provides
     fun provideDao(database: KucharzDatabase): KucharzDao = database.dao()
