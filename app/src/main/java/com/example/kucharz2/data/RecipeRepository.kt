@@ -206,13 +206,17 @@ object RecipeResponseParser {
             ?: source.optIntOrNull("missing_count")
             ?: source.optIntOrNull("missingCount")
             ?: missing.size
+        val imageUrl = source.firstString("image", "imageUrl", "image_url", "thumbnail")
+            ?: firstString("image", "imageUrl", "image_url", "thumbnail")
+            ?: source.firstImageUrl("images")
+            ?: firstImageUrl("images")
 
         return Recipe(
             id = id,
             title = title,
             ingredients = ingredients,
             instructions = instructions,
-            imageUrl = source.firstString("image", "imageUrl", "image_url", "thumbnail") ?: firstString("image", "imageUrl", "image_url", "thumbnail"),
+            imageUrl = imageUrl,
             sourceUrl = source.firstString("url", "sourceUrl", "source_url", "link") ?: firstString("url", "sourceUrl", "source_url", "link"),
             tags = source.firstStringList("tags", "cuisines", "categories").ifEmpty { firstStringList("tags", "cuisines", "categories") },
             missingIngredients = missing,
@@ -225,6 +229,17 @@ object RecipeResponseParser {
 
     private fun JSONObject.firstStringList(vararg keys: String): List<String> =
         keys.firstNotNullOfOrNull { key -> optValueAsList(key).takeIf { it.isNotEmpty() } }.orEmpty()
+
+    private fun JSONObject.firstImageUrl(key: String): String? {
+        val images = optJSONArray(key) ?: return null
+        for (i in 0 until images.length()) {
+            when (val item = images.opt(i)) {
+                is String -> if (item.isNotBlank()) return item
+                is JSONObject -> item.firstString("image_url", "imageUrl", "url", "src", "link")?.let { return it }
+            }
+        }
+        return null
+    }
 
     private fun JSONObject.optValueAsList(key: String): List<String> = when (val value = opt(key)) {
         is JSONArray -> value.toStringList()
