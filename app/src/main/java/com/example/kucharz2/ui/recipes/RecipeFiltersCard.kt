@@ -13,6 +13,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +30,9 @@ import com.example.kucharz2.data.MissingIngredientMode
 import com.example.kucharz2.data.RecipeFilterOptions
 import com.example.kucharz2.data.RecipeFilters
 import com.example.kucharz2.data.StandardIngredientCatalog
+import com.example.kucharz2.data.UsedIngredientsSortMode
 import com.example.kucharz2.ui.components.SectionTitle
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -134,12 +137,20 @@ fun RecipeFiltersCard(
             SingleChoiceFilterChips("Maksymalna liczba składników", RecipeFilterOptions.maxIngredients, filters.maxIngredients?.toString()) { value ->
                 onFiltersChange(filters.copy(maxIngredients = value?.toIntOrNull()))
             }
+
+            MissingIngredientsSlider(
+                selectedMode = filters.missingIngredientMode,
+                onModeChange = { mode -> onFiltersChange(filters.copy(missingIngredientMode = mode)) }
+            )
+
             SingleChoiceFilterChips(
-                title = "Ile składników może brakować",
-                options = RecipeFilterOptions.missingIngredientModes,
-                selectedValue = filters.missingIngredientMode?.name
+                title = "Sortowanie po użytych składnikach",
+                options = RecipeFilterOptions.usedIngredientsSortModes,
+                selectedValue = filters.usedIngredientsSortMode?.name
             ) { value ->
-                onFiltersChange(filters.copy(missingIngredientMode = value?.let { MissingIngredientMode.valueOf(it) }))
+                onFiltersChange(
+                    filters.copy(usedIngredientsSortMode = value?.let { UsedIngredientsSortMode.valueOf(it) })
+                )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -153,6 +164,36 @@ fun RecipeFiltersCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onApply, modifier = Modifier.weight(1f)) { Text("Zastosuj") }
                 OutlinedButton(onClick = onClear, modifier = Modifier.weight(1f)) { Text("Wyczyść") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissingIngredientsSlider(
+    selectedMode: MissingIngredientMode,
+    onModeChange: (MissingIngredientMode) -> Unit
+) {
+    val modes = RecipeFilterOptions.missingIngredientModes
+    val selectedIndex = modes.indexOf(selectedMode).takeIf { it >= 0 }
+        ?: modes.indexOf(MissingIngredientMode.MAX_2)
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionTitle("Ile składników może brakować")
+        Text("Wybrane: ${modes[selectedIndex].label}", color = MaterialTheme.colorScheme.primary)
+        Slider(
+            value = selectedIndex.toFloat(),
+            onValueChange = { value ->
+                val index = value.roundToInt().coerceIn(0, modes.lastIndex)
+                onModeChange(modes[index])
+            },
+            valueRange = 0f..modes.lastIndex.toFloat(),
+            steps = modes.size - 2,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+            modes.forEach { mode ->
+                Text(mode.label, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
