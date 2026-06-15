@@ -37,19 +37,19 @@ fun PantryScreen(viewModel: PantryViewModel = hiltViewModel()) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { HeaderCard("Stałe składniki", "Wybierz stałe składniki z tego samego ustandaryzowanego katalogu.") }
+        item { HeaderCard("Spiżarnia", "Wybierz składniki, które zwykle masz w domu.") }
         item {
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::onQueryChange,
-                label = { Text("Szukaj stałego składnika z listy") },
+                label = { Text("Szukaj składnika do spiżarni") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
         }
-        item { SuggestionChips("Pasujące stałe składniki", query, suggestions, viewModel::selectPantryIngredient) }
+        item { SuggestionChips("Pasujące składniki", query, suggestions, viewModel::selectPantryIngredient) }
         if (items.isEmpty()) {
-            item { EmptyState("Nie dodano jeszcze stałych składników.") }
+            item { EmptyState("Spiżarnia jest pusta.") }
         } else {
             items(items, key = { it.id }) { item ->
                 Card(Modifier.fillMaxWidth()) {
