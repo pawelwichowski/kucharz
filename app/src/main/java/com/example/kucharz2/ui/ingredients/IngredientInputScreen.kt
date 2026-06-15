@@ -30,8 +30,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.kucharz2.data.StandardIngredientCatalog
 import com.example.kucharz2.ui.components.ErrorCard
 import com.example.kucharz2.ui.components.HeaderCard
-import com.example.kucharz2.ui.components.PantryRequiredIngredientChips
-import com.example.kucharz2.ui.components.RequiredIngredientChips
+import com.example.kucharz2.ui.components.PlainIngredientChips
+import com.example.kucharz2.ui.components.SelectedIngredientChips
 import com.example.kucharz2.ui.components.SuggestionChips
 
 @Composable
@@ -41,7 +41,7 @@ fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltViewModel())
     val searchError by viewModel.searchError.collectAsState()
     val excluded = state.ingredients.map { it.name }.toSet()
     val suggestions = StandardIngredientCatalog.suggestions(state.query, excluded)
-    val hasSelectedItems = state.ingredients.isNotEmpty() || state.requiredPantryIngredients.isNotEmpty()
+    val hasSelectedItems = state.ingredients.isNotEmpty()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -51,7 +51,7 @@ fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltViewModel())
         item {
             HeaderCard(
                 title = "Wybierz składniki",
-                subtitle = "Wpisz nazwę składnika i wybierz jedną z ustandaryzowanych podpowiedzi. Checkbox przy składniku oznacza, że zostanie wysłany także jako wymagany."
+                subtitle = "Wpisz nazwę składnika i wybierz jedną z ustandaryzowanych podpowiedzi. Główny składnik ustawisz później w filtrach wyników."
             )
         }
         item {
@@ -73,11 +73,10 @@ fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltViewModel())
             )
         }
         item {
-            RequiredIngredientChips(
+            SelectedIngredientChips(
                 title = "Wybrane składniki",
                 ingredients = state.ingredients,
                 emptyText = "Nie wybrano jeszcze składników z lodówki.",
-                onRequiredChange = viewModel::toggleIngredientRequired,
                 onRemove = viewModel::removeIngredient
             )
         }
@@ -99,7 +98,7 @@ fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltViewModel())
                         Text("Uwzględnij stałe składniki", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Text(
                             text = if (state.includePantryIngredients) {
-                                "Stałe składniki zostaną dodane do dostępnych. Zaznacz checkbox przy stałym składniku, żeby dodać go też do wymaganych."
+                                "Stałe składniki zostaną dodane do dostępnych składników."
                             } else {
                                 "Wyszukiwanie użyje tylko składników wybranych powyżej."
                             },
@@ -111,13 +110,11 @@ fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltViewModel())
             }
         }
         item {
-            PantryRequiredIngredientChips(
+            PlainIngredientChips(
                 title = if (state.includePantryIngredients) "Stałe składniki" else "Stałe składniki pomijane",
                 items = state.pantryIngredients,
-                requiredItems = state.requiredPantryIngredients,
                 enabled = state.includePantryIngredients,
-                emptyText = "Dodaj stałe składniki w ustawieniach.",
-                onRequiredChange = viewModel::togglePantryRequired
+                emptyText = "Dodaj stałe składniki w ustawieniach."
             )
         }
         item {
