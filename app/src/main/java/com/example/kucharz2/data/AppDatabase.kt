@@ -50,6 +50,18 @@ interface KucharzDao {
     @Query("DELETE FROM pantry_ingredients WHERE id = :id")
     suspend fun deletePantryIngredient(id: Long)
 
+    @Query("SELECT * FROM permanent_excluded_ingredients ORDER BY name COLLATE NOCASE ASC")
+    fun observePermanentExcludedIngredients(): Flow<List<PermanentExcludedIngredientEntity>>
+
+    @Query("SELECT * FROM permanent_excluded_ingredients ORDER BY name COLLATE NOCASE ASC")
+    suspend fun getPermanentExcludedIngredientsOnce(): List<PermanentExcludedIngredientEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPermanentExcludedIngredient(item: PermanentExcludedIngredientEntity)
+
+    @Query("DELETE FROM permanent_excluded_ingredients WHERE id = :id")
+    suspend fun deletePermanentExcludedIngredient(id: Long)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertHistory(item: RecipeHistoryEntity)
 
@@ -64,8 +76,13 @@ interface KucharzDao {
 }
 
 @Database(
-    entities = [ShoppingItemEntity::class, PantryIngredientEntity::class, RecipeHistoryEntity::class],
-    version = 1,
+    entities = [
+        ShoppingItemEntity::class,
+        PantryIngredientEntity::class,
+        PermanentExcludedIngredientEntity::class,
+        RecipeHistoryEntity::class
+    ],
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(StringListConverters::class)
