@@ -9,7 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import com.example.kucharz2.ui.KucharzApp
+import com.example.kucharz2.ui.navigation.KucharzApp
 import com.example.kucharz2.ui.theme.Kucharz2Theme
 import dagger.hilt.android.AndroidEntryPoint
 
