@@ -308,13 +308,19 @@ class RecipeResultsViewModel @Inject constructor(
 
     fun openRecipe(recipe: Recipe) {
         _selectedRecipe.value = recipe
+        viewModelScope.launch {
+            val detailed = repository.getRecipeDetails(recipe)
+            if (_selectedRecipe.value?.id == recipe.id) {
+                _selectedRecipe.value = detailed
+            }
+        }
     }
 
     fun closeRecipe() { _selectedRecipe.value = null }
 
     fun saveRecipe(recipe: Recipe) {
         viewModelScope.launch {
-            repository.addToHistory(recipe)
+            repository.addToHistory(repository.getRecipeDetails(recipe))
             _message.value = "Zapisano przepis: ${recipe.title}"
         }
     }
@@ -527,7 +533,14 @@ class SavedRecipesViewModel @Inject constructor(
     val selectedRecipe: StateFlow<Recipe?> = _selectedRecipe
 
     fun open(item: RecipeHistoryEntity) {
-        _selectedRecipe.value = item.toRecipe()
+        val recipe = item.toRecipe()
+        _selectedRecipe.value = recipe
+        viewModelScope.launch {
+            val detailed = repository.getRecipeDetails(recipe)
+            if (_selectedRecipe.value?.id == recipe.id) {
+                _selectedRecipe.value = detailed
+            }
+        }
     }
 
     fun close() {
@@ -759,7 +772,7 @@ private fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
                 if (recipe.ingredients.isEmpty()) Text("API nie zwróciło składników dla tego przepisu.")
                 recipe.ingredients.forEach { Text("• $it") }
                 SectionTitle("Przygotowanie")
-                if (recipe.instructions.isEmpty()) Text("API nie zwróciło instrukcji przygotowania.")
+                if (recipe.instructions.isEmpty()) Text("Pobieram instrukcje albo API ich nie zwróciło dla tego przepisu.")
                 recipe.instructions.forEachIndexed { index, step -> Text("${index + 1}. $step") }
                 recipe.sourceUrl?.let { Text("Źródło: $it", style = MaterialTheme.typography.bodySmall) }
             }
