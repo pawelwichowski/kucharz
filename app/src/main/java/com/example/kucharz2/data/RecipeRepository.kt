@@ -94,12 +94,13 @@ class RecipeRepository @Inject constructor(
     ) = withContext(Dispatchers.IO) {
         val pantry = if (includePantryIngredients) dao.getPantryIngredientsOnce().map { it.name } else emptyList()
         val available = normalizeInput(userIngredients + pantry)
+        val apiKitchenIngredients = IngredientQueryExpander.expandForApiQuery(available)
         val required = normalizeInput(requiredIngredients + listOfNotNull(filters.mainIngredient))
         val excluded = normalizeInput(filters.excludedIngredients)
         _availableIngredients.value = available
 
         val response = api.getSupercookResults(
-            kitchen = available.joinToString(","),
+            kitchen = apiKitchenIngredients.joinToString(","),
             focus = required.joinToString(","),
             exclude = excluded.joinToString(","),
             categoryName = filters.categoryNames(),
