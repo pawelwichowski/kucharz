@@ -201,7 +201,11 @@ class RecipeRepository @Inject constructor(
     }
 
     suspend fun getRecipeDetails(recipe: Recipe): Recipe = withContext(Dispatchers.IO) {
-        recipe
+        runCatching {
+            val response = api.getSupercookRecipeDetails(recipe.id)
+            if (!response.isSuccessful) return@runCatching recipe
+            SupercookDetailsParser.parse(recipe, response.body())
+        }.getOrElse { recipe }
     }
 
     suspend fun addMissingIngredientsToShoppingList(recipe: Recipe) = withContext(Dispatchers.IO) {
@@ -324,12 +328,59 @@ object SupercookParser {
                         ingredients = ingredients,
                         instructions = emptyList(),
                         imageUrl = imageUrl,
-                        sourceUrl = "https://www.supercook.com/#/recipes/$id",
+                        sourceUrl = null,
                         tags = listOfNotNull(domain),
                         missingIngredients = needs,
                         missingCount = needs.size
                     )
                 )
+            }
+        }
+    }
+
+    private fun JSONArray?.toStringList(): List<String> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (i in 0 until length()) {
+                val value = optString(i).cleanupName()
+                if (value.isNotBlank() && value != "null") add(value)
+            }
+        }
+    }
+}
+
+object SupercookDetailsParser {
+    fun parse(fallback: Recipe, body: ResponseBody?): Recipe {
+        val text = body?.string().orEmpty().trim()
+        if (text.isBlank()) return fallback
+
+        val root = JSONObject(text)
+        val recipeObject = root.optJSONObject("recipe")
+        val detailIngredients = root.optJSONArray("ingredients").toIngredientLines()
+        val detailMissing = recipeObject?.optJSONArray("needs").toStringList()
+        val displayUrl = recipeObject?.optString("displayurl")?.takeIf { it.isNotBlank() && it != "null" }
+        val realUrl = recipeObject?.optString("hash")?.takeIf { it.isNotBlank() && it != "null" }
+        val title = recipeObject?.optString("title")?.takeIf { it.isNotBlank() && it != "null" } ?: fallback.title
+        val imageUrl = recipeObject?.optString("img")?.takeIf { it.isNotBlank() && it != "null" } ?: fallback.imageUrl
+
+        return fallback.copy(
+            title = title,
+            ingredients = detailIngredients.ifEmpty { fallback.ingredients },
+            imageUrl = imageUrl,
+            sourceUrl = realUrl ?: fallback.sourceUrl,
+            tags = listOfNotNull(displayUrl).ifEmpty { fallback.tags },
+            missingIngredients = detailMissing.ifEmpty { fallback.missingIngredients },
+            missingCount = detailMissing.ifEmpty { fallback.missingIngredients }.size
+        )
+    }
+
+    private fun JSONArray?.toIngredientLines(): List<String> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (i in 0 until length()) {
+                val obj = optJSONObject(i)
+                val line = obj?.optString("line")?.cleanupName().orEmpty()
+                if (line.isNotBlank() && line != "null") add(line)
             }
         }
     }
