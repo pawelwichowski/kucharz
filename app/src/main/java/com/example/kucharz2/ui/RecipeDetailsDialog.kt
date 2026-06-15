@@ -1,11 +1,11 @@
 package com.example.kucharz2.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.MaterialTheme
@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.example.kucharz2.data.Recipe
 
 @Composable
@@ -23,10 +24,10 @@ internal fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(12))
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (recipe.tags.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(8))) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(recipe.tags) { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
                     }
                 }
