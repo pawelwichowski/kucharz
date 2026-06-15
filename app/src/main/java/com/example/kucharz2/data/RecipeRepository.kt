@@ -1,9 +1,13 @@
 package com.example.kucharz2.data
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
 import org.json.JSONArray
@@ -18,6 +22,9 @@ class RecipeRepository @Inject constructor(
     private val api: RecipeApi,
     private val dao: KucharzDao
 ) {
+    private val searchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var refreshJob: Job? = null
+
     private val _availableIngredients = MutableStateFlow<List<String>>(emptyList())
     val availableIngredients: StateFlow<List<String>> = _availableIngredients.asStateFlow()
 
@@ -27,9 +34,32 @@ class RecipeRepository @Inject constructor(
     private val _nearRecipes = MutableStateFlow<List<Recipe>>(emptyList())
     val nearRecipes: StateFlow<List<Recipe>> = _nearRecipes.asStateFlow()
 
+    private val _searchLoading = MutableStateFlow(false)
+    val searchLoading: StateFlow<Boolean> = _searchLoading.asStateFlow()
+
+    private val _searchError = MutableStateFlow<String?>(null)
+    val searchError: StateFlow<String?> = _searchError.asStateFlow()
+
     fun observeShoppingItems() = dao.observeShoppingItems()
     fun observePantryIngredients() = dao.observePantryIngredients()
     fun observeHistory() = dao.observeHistory()
+
+    fun refreshRecipesInBackground(userIngredients: List<String>, limit: Int = 20) {
+        refreshJob?.cancel()
+        refreshJob = searchScope.launch {
+            _searchLoading.value = true
+            _searchError.value = null
+            runCatching { refreshRecipes(userIngredients, limit) }
+                .onFailure { throwable ->
+                    _searchError.value = throwable.message ?: "Nie udało się pobrać przepisów."
+                }
+            _searchLoading.value = false
+        }
+    }
+
+    fun clearSearchError() {
+        _searchError.value = null
+    }
 
     suspend fun refreshRecipes(userIngredients: List<String>, limit: Int = 20) = withContext(Dispatchers.IO) {
         val pantry = dao.getPantryIngredientsOnce().map { it.name }
