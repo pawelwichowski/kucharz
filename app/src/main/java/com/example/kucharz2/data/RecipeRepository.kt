@@ -81,6 +81,14 @@ class RecipeRepository @Inject constructor(
         _nearRecipes.value = parsed.filter { it.missingCount in 1..2 }
     }
 
+    suspend fun getRecipeDetails(recipe: Recipe): Recipe = withContext(Dispatchers.IO) {
+        val response = api.getRecipe(recipe.id)
+        if (!response.isSuccessful) return@withContext recipe
+
+        val detailed = RecipeResponseParser.parse(response.body()).firstOrNull() ?: return@withContext recipe
+        recipe.mergeDetails(detailed)
+    }
+
     suspend fun addMissingIngredientsToShoppingList(recipe: Recipe) = withContext(Dispatchers.IO) {
         recipe.missingIngredients.forEach { addShoppingItem(it) }
     }
@@ -137,6 +145,15 @@ class RecipeRepository @Inject constructor(
 
         return copy(missingIngredients = missing, missingCount = missing.size)
     }
+
+    private fun Recipe.mergeDetails(detailed: Recipe): Recipe = copy(
+        title = detailed.title.ifBlank { title },
+        ingredients = detailed.ingredients.ifEmpty { ingredients },
+        instructions = detailed.instructions.ifEmpty { instructions },
+        imageUrl = detailed.imageUrl ?: imageUrl,
+        sourceUrl = detailed.sourceUrl ?: sourceUrl,
+        tags = detailed.tags.ifEmpty { tags }
+    )
 }
 
 object RecipeResponseParser {
@@ -178,8 +195,10 @@ object RecipeResponseParser {
             ?: firstString("id", "recipe_id", "recipeId", "_id")
             ?: title.normalizedKey().ifBlank { title.hashCode().toString() }
 
-        val ingredients = source.firstStringList("ingredients", "ingredientLines", "skladniki", "required_ingredients")
-        val instructions = source.firstStringList("instructions", "steps", "directions", "method", "przygotowanie")
+        val ingredients = source.firstStringList("ingredients", "ingredientLines", "ingredient_lines", "skladniki", "required_ingredients")
+            .ifEmpty { firstStringList("ingredients", "ingredientLines", "ingredient_lines", "skladniki", "required_ingredients") }
+        val instructions = source.firstStringList("instructions", "instruction", "steps", "directions", "method", "preparation", "przygotowanie")
+            .ifEmpty { firstStringList("instructions", "instruction", "steps", "directions", "method", "preparation", "przygotowanie") }
         val missing = firstStringList("missing_ingredients", "missingIngredients", "missing", "brakujace_skladniki")
             .ifEmpty { source.firstStringList("missing_ingredients", "missingIngredients", "missing", "brakujace_skladniki") }
         val missingCount = optIntOrNull("missing_count")
@@ -193,9 +212,9 @@ object RecipeResponseParser {
             title = title,
             ingredients = ingredients,
             instructions = instructions,
-            imageUrl = source.firstString("image", "imageUrl", "image_url", "thumbnail"),
-            sourceUrl = source.firstString("url", "sourceUrl", "source_url", "link"),
-            tags = source.firstStringList("tags", "cuisines", "categories"),
+            imageUrl = source.firstString("image", "imageUrl", "image_url", "thumbnail") ?: firstString("image", "imageUrl", "image_url", "thumbnail"),
+            sourceUrl = source.firstString("url", "sourceUrl", "source_url", "link") ?: firstString("url", "sourceUrl", "source_url", "link"),
+            tags = source.firstStringList("tags", "cuisines", "categories").ifEmpty { firstStringList("tags", "cuisines", "categories") },
             missingIngredients = missing,
             missingCount = missingCount
         )
@@ -218,7 +237,7 @@ object RecipeResponseParser {
         for (i in 0 until length()) {
             when (val item = opt(i)) {
                 is String -> add(item.cleanupName())
-                is JSONObject -> add(item.firstString("name", "ingredient", "text", "original", "title").orEmpty().cleanupName())
+                is JSONObject -> add(item.firstString("name", "ingredient", "text", "original", "title", "display_text", "step", "instruction", "description").orEmpty().cleanupName())
             }
         }
     }.filter { it.isNotBlank() }
