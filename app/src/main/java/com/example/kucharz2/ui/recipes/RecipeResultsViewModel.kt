@@ -43,10 +43,15 @@ class RecipeResultsViewModel @Inject constructor(
 
     fun closeRecipe() { _selectedRecipe.value = null }
 
-    fun saveRecipe(recipe: Recipe) {
+    fun toggleSaved(recipe: Recipe, isSaved: Boolean) {
         viewModelScope.launch {
-            repository.addToHistory(repository.getRecipeDetails(recipe))
-            _message.value = "Zapisano przepis: ${recipe.title}"
+            if (isSaved) {
+                repository.deleteHistory(recipe.id)
+                _message.value = "Usunięto zapis: ${recipe.title}"
+            } else {
+                repository.addToHistory(repository.getRecipeDetails(recipe))
+                _message.value = "Zapisano przepis: ${recipe.title}"
+            }
         }
     }
 
