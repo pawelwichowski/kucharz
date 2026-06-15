@@ -52,8 +52,13 @@ fun ShoppingListScreen(viewModel: ShoppingListViewModel = hiltViewModel()) {
             }
         }
         item {
-            OutlinedButton(onClick = viewModel::deleteChecked, enabled = items.any { it.checked }) {
-                Text("Usuń kupione")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = viewModel::deleteChecked, enabled = items.any { it.checked }) {
+                    Text("Usuń kupione")
+                }
+                OutlinedButton(onClick = viewModel::deleteAll, enabled = items.isNotEmpty()) {
+                    Text("Usuń wszystkie")
+                }
             }
         }
         if (items.isEmpty()) {
