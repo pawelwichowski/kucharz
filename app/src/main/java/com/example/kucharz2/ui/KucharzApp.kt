@@ -134,9 +134,7 @@ fun KucharzApp(
             startDestination = Screen.Ingredients.route,
             modifier = Modifier.padding(padding)
         ) {
-            composable(Screen.Ingredients.route) {
-                IngredientInputScreen(onSearchFinished = { navController.navigate(Screen.Recipes.route) })
-            }
+            composable(Screen.Ingredients.route) { IngredientInputScreen() }
             composable(Screen.Recipes.route) { RecipeResultsScreen() }
             composable(Screen.Shopping.route) { ShoppingListScreen() }
             composable(Screen.Pantry.route) { PantryScreen() }
@@ -154,7 +152,6 @@ data class IngredientInputUiState(
     val input: String = "",
     val ingredients: List<String> = emptyList(),
     val pantryIngredients: List<String> = emptyList(),
-    val loading: Boolean = false,
     val error: String? = null
 )
 
@@ -170,6 +167,9 @@ class IngredientInputViewModel @Inject constructor(
     ) { state, pantry ->
         state.copy(pantryIngredients = pantry.map { it.name })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IngredientInputUiState())
+
+    val searchLoading = repository.searchLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val searchError = repository.searchError.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun onInputChange(value: String) = editableState.update { it.copy(input = value, error = null) }
 
@@ -191,7 +191,9 @@ class IngredientInputViewModel @Inject constructor(
 
     fun clearIngredients() = editableState.update { it.copy(ingredients = emptyList()) }
 
-    fun search(onSuccess: () -> Unit) {
+    fun clearSearchError() = repository.clearSearchError()
+
+    fun search() {
         addIngredient()
         val ingredients = editableState.value.ingredients
         val hasPantryIngredients = uiState.value.pantryIngredients.isNotEmpty()
@@ -199,26 +201,17 @@ class IngredientInputViewModel @Inject constructor(
             editableState.update { it.copy(error = "Dodaj przynajmniej jeden składnik albo stały składnik.") }
             return
         }
-        viewModelScope.launch {
-            editableState.update { it.copy(loading = true, error = null) }
-            runCatching { repository.refreshRecipes(ingredients) }
-                .onSuccess {
-                    editableState.update { it.copy(loading = false) }
-                    onSuccess()
-                }
-                .onFailure { throwable ->
-                    editableState.update { it.copy(loading = false, error = throwable.message ?: "Nie udało się pobrać przepisów.") }
-                }
-        }
+        repository.refreshRecipesInBackground(ingredients, limit = 20)
     }
 }
 
 @Composable
 private fun IngredientInputScreen(
-    onSearchFinished: () -> Unit,
     viewModel: IngredientInputViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val searchLoading by viewModel.searchLoading.collectAsState()
+    val searchError by viewModel.searchError.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -263,18 +256,26 @@ private fun IngredientInputScreen(
         }
         item {
             Button(
-                onClick = { viewModel.search(onSearchFinished) },
-                enabled = !state.loading,
+                onClick = viewModel::search,
+                enabled = !searchLoading,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (state.loading) {
+                if (searchLoading) {
                     CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
+                    Text("Pobieram przepisy…")
+                } else {
+                    Text("Szukaj przepisów")
                 }
-                Text("Szukaj przepisów")
             }
         }
+        if (searchLoading) {
+            item { Text("Możesz przejść na inne ekrany — pobieranie będzie działać w tle.") }
+        }
         state.error?.let { error ->
+            item { ErrorCard(error) }
+        }
+        searchError?.let { error ->
             item { ErrorCard(error) }
         }
     }
@@ -287,14 +288,13 @@ class RecipeResultsViewModel @Inject constructor(
     val recipes = repository.exactRecipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val nearRecipes = repository.nearRecipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val availableIngredients = repository.availableIngredients.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val searchLoading = repository.searchLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val searchError = repository.searchError.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     private val _selectedRecipe = MutableStateFlow<Recipe?>(null)
     val selectedRecipe: StateFlow<Recipe?> = _selectedRecipe
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
-    private val _expandedLoading = MutableStateFlow(false)
-    val expandedLoading: StateFlow<Boolean> = _expandedLoading
-    private val _expandedError = MutableStateFlow<String?>(null)
-    val expandedError: StateFlow<String?> = _expandedError
 
     fun openRecipe(recipe: Recipe) {
         _selectedRecipe.value = recipe
@@ -311,21 +311,12 @@ class RecipeResultsViewModel @Inject constructor(
     }
 
     fun clearMessage() { _message.value = null }
-    fun clearExpandedError() { _expandedError.value = null }
+    fun clearSearchError() = repository.clearSearchError()
 
     fun loadRecipesWithMissingIngredients() {
         val available = repository.availableIngredients.value
-        if (available.isEmpty() || _expandedLoading.value) return
-
-        viewModelScope.launch {
-            _expandedLoading.value = true
-            _expandedError.value = null
-            runCatching { repository.refreshRecipes(available, limit = 100) }
-                .onFailure { throwable ->
-                    _expandedError.value = throwable.message ?: "Nie udało się pobrać przepisów z brakującymi składnikami."
-                }
-            _expandedLoading.value = false
-        }
+        if (available.isEmpty()) return
+        repository.refreshRecipesInBackground(available, limit = 100)
     }
 }
 
@@ -336,21 +327,17 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
     val available by viewModel.availableIngredients.collectAsState()
     val selected by viewModel.selectedRecipe.collectAsState()
     val message by viewModel.message.collectAsState()
-    val expandedLoading by viewModel.expandedLoading.collectAsState()
-    val expandedError by viewModel.expandedError.collectAsState()
+    val searchLoading by viewModel.searchLoading.collectAsState()
+    val searchError by viewModel.searchError.collectAsState()
     var showMissingRecipes by rememberSaveable { mutableStateOf(false) }
 
-    val visibleRecipes = if (showMissingRecipes) {
-        (exactRecipes + nearRecipes).distinctBy { it.id }
-    } else {
-        exactRecipes
-    }
+    val visibleRecipes = if (showMissingRecipes) nearRecipes else exactRecipes
 
     Column(Modifier.fillMaxSize()) {
         message?.let {
             SuccessCard(message = it, onDismiss = viewModel::clearMessage)
         }
-        expandedError?.let {
+        searchError?.let {
             ErrorCard(message = it)
         }
         LazyColumn(
@@ -360,7 +347,7 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
         ) {
             item {
                 HeaderCard(
-                    title = "Przepisy",
+                    title = if (showMissingRecipes) "Przepisy z brakującymi składnikami" else "Pełne przepisy",
                     subtitle = if (available.isEmpty()) "Najpierw wyszukaj po składnikach." else "Składniki: ${available.joinToString()}"
                 )
             }
@@ -372,13 +359,13 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "Pokazuj też przepisy, gdzie brakuje składników",
+                            text = "Pokazuj tylko przepisy, gdzie brakuje składników",
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Switch(
                             checked = showMissingRecipes,
-                            enabled = !expandedLoading,
+                            enabled = !searchLoading,
                             onCheckedChange = { enabled ->
                                 showMissingRecipes = enabled
                                 if (enabled) viewModel.loadRecipesWithMissingIngredients()
@@ -387,7 +374,7 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                     }
                 }
             }
-            if (showMissingRecipes && expandedLoading) {
+            if (searchLoading) {
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Row(
@@ -396,12 +383,18 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
-                            Text("Pobieram też przepisy z brakującymi składnikami…")
+                            Text(
+                                if (showMissingRecipes) {
+                                    "Pobieram przepisy z brakującymi składnikami…"
+                                } else {
+                                    "Pobieram pełne przepisy…"
+                                }
+                            )
                         }
                     }
                 }
             }
-            if (showMissingRecipes && !expandedLoading && nearRecipes.isEmpty() && exactRecipes.isNotEmpty()) {
+            if (showMissingRecipes && !searchLoading && nearRecipes.isEmpty() && exactRecipes.isNotEmpty()) {
                 item {
                     Text(
                         text = "Nie znaleziono przepisów z 1–2 brakującymi składnikami w pobranej puli wyników.",
@@ -409,11 +402,11 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                     )
                 }
             }
-            if (visibleRecipes.isEmpty()) {
+            if (!searchLoading && visibleRecipes.isEmpty()) {
                 item {
                     EmptyState(
                         if (showMissingRecipes) {
-                            "Nie znaleziono przepisów pasujących ani takich, gdzie brakuje 1–2 składników."
+                            "Nie znaleziono przepisów z 1–2 brakującymi składnikami."
                         } else {
                             "Nie znaleziono przepisów, do których masz wszystkie składniki."
                         }
