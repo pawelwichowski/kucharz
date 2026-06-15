@@ -164,6 +164,7 @@ data class IngredientInputUiState(
     val input: String = "",
     val ingredients: List<String> = emptyList(),
     val pantryIngredients: List<String> = emptyList(),
+    val includePantryIngredients: Boolean = true,
     val error: String? = null
 )
 
@@ -203,17 +204,26 @@ class IngredientInputViewModel @Inject constructor(
 
     fun clearIngredients() = editableState.update { it.copy(ingredients = emptyList()) }
 
+    fun setIncludePantryIngredients(enabled: Boolean) = editableState.update {
+        it.copy(includePantryIngredients = enabled, error = null)
+    }
+
     fun clearSearchError() = repository.clearSearchError()
 
     fun search() {
         addIngredient()
-        val ingredients = editableState.value.ingredients
+        val state = editableState.value
+        val ingredients = state.ingredients
         val hasPantryIngredients = uiState.value.pantryIngredients.isNotEmpty()
-        if (ingredients.isEmpty() && !hasPantryIngredients) {
-            editableState.update { it.copy(error = "Dodaj przynajmniej jeden składnik albo stały składnik.") }
+        if (ingredients.isEmpty() && (!state.includePantryIngredients || !hasPantryIngredients)) {
+            editableState.update { it.copy(error = "Dodaj przynajmniej jeden składnik albo włącz stałe składniki.") }
             return
         }
-        repository.refreshRecipesInBackground(ingredients, limit = 20)
+        repository.refreshRecipesInBackground(
+            userIngredients = ingredients,
+            limit = 20,
+            includePantryIngredients = state.includePantryIngredients
+        )
     }
 }
 
@@ -233,7 +243,7 @@ private fun IngredientInputScreen(
         item {
             HeaderCard(
                 title = "Co masz w lodówce?",
-                subtitle = "Wpisz składniki po przecinku albo dodawaj je pojedynczo. Stałe składniki są doliczane automatycznie."
+                subtitle = "Wpisz składniki po przecinku albo dodawaj je pojedynczo. Stałe składniki mogą być doliczane automatycznie."
             )
         }
         item {
@@ -259,8 +269,33 @@ private fun IngredientInputScreen(
             )
         }
         item {
+            Card(Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Uwzględnij stałe składniki", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (state.includePantryIngredients) {
+                                "Stałe składniki zostaną dodane do wyszukiwania."
+                            } else {
+                                "Wyszukiwanie użyje tylko składników wpisanych powyżej."
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Switch(
+                        checked = state.includePantryIngredients,
+                        onCheckedChange = viewModel::setIncludePantryIngredients
+                    )
+                }
+            }
+        }
+        item {
             IngredientChips(
-                title = "Stałe składniki uwzględniane w szukaniu",
+                title = if (state.includePantryIngredients) "Stałe składniki uwzględniane w szukaniu" else "Stałe składniki pomijane w szukaniu",
                 items = state.pantryIngredients,
                 emptyText = "Dodaj stałe składniki w zakładce Ustawienia.",
                 onRemove = null
@@ -339,9 +374,7 @@ class RecipeResultsViewModel @Inject constructor(
     fun clearSearchError() = repository.clearSearchError()
 
     fun loadRecipesWithMissingIngredients() {
-        val available = repository.availableIngredients.value
-        if (available.isEmpty()) return
-        repository.refreshRecipesInBackground(available, limit = 100)
+        repository.refreshCurrentRecipesInBackground(limit = 100)
     }
 }
 
@@ -702,7 +735,7 @@ private fun SettingsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Stałe składniki", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        text = "Zarządzaj składnikami, które zawsze masz w domu i które są automatycznie doliczane do wyszukiwania.",
+                        text = "Zarządzaj składnikami, które zawsze masz w domu i które mogą być automatycznie doliczane do wyszukiwania.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Button(onClick = onOpenPantry) { Text("Otwórz stałe składniki") }
