@@ -24,6 +24,8 @@ class RecipeRepository @Inject constructor(
 ) {
     private val searchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var refreshJob: Job? = null
+    private var lastUserIngredients: List<String> = emptyList()
+    private var lastIncludePantryIngredients: Boolean = true
 
     private val _availableIngredients = MutableStateFlow<List<String>>(emptyList())
     val availableIngredients: StateFlow<List<String>> = _availableIngredients.asStateFlow()
@@ -44,12 +46,18 @@ class RecipeRepository @Inject constructor(
     fun observePantryIngredients() = dao.observePantryIngredients()
     fun observeHistory() = dao.observeHistory()
 
-    fun refreshRecipesInBackground(userIngredients: List<String>, limit: Int = 20) {
+    fun refreshRecipesInBackground(
+        userIngredients: List<String>,
+        limit: Int = 20,
+        includePantryIngredients: Boolean = true
+    ) {
+        lastUserIngredients = userIngredients
+        lastIncludePantryIngredients = includePantryIngredients
         refreshJob?.cancel()
         refreshJob = searchScope.launch {
             _searchLoading.value = true
             _searchError.value = null
-            runCatching { refreshRecipes(userIngredients, limit) }
+            runCatching { refreshRecipes(userIngredients, limit, includePantryIngredients) }
                 .onFailure { throwable ->
                     _searchError.value = throwable.message ?: "Nie udało się pobrać przepisów."
                 }
@@ -57,12 +65,24 @@ class RecipeRepository @Inject constructor(
         }
     }
 
+    fun refreshCurrentRecipesInBackground(limit: Int = 100) {
+        refreshRecipesInBackground(
+            userIngredients = lastUserIngredients,
+            limit = limit,
+            includePantryIngredients = lastIncludePantryIngredients
+        )
+    }
+
     fun clearSearchError() {
         _searchError.value = null
     }
 
-    suspend fun refreshRecipes(userIngredients: List<String>, limit: Int = 20) = withContext(Dispatchers.IO) {
-        val pantry = dao.getPantryIngredientsOnce().map { it.name }
+    suspend fun refreshRecipes(
+        userIngredients: List<String>,
+        limit: Int = 20,
+        includePantryIngredients: Boolean = true
+    ) = withContext(Dispatchers.IO) {
+        val pantry = if (includePantryIngredients) dao.getPantryIngredientsOnce().map { it.name } else emptyList()
         val available = normalizeInput(userIngredients + pantry)
         _availableIngredients.value = available
 
