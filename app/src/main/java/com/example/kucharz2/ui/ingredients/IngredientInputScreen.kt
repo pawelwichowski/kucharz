@@ -59,114 +59,116 @@ fun IngredientInputScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item { Spacer(Modifier.height(12.dp)) }
+    Column(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item { Spacer(Modifier.height(12.dp)) }
 
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Co masz w lodówce?",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        Text(
+                            text = "Co masz w lodówce?",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                         OutlinedTextField(
                             value = state.query,
                             onValueChange = viewModel::onQueryChange,
                             label = { Text("Składnik") },
                             placeholder = { Text("np. jajka") },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
-                        Button(
-                            onClick = {
-                                searchRequestVersion = successfulSearchVersion
-                                viewModel.search()
-                            },
-                            enabled = !searchLoading
-                        ) {
-                            if (searchLoading) {
-                                CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
-                            } else {
-                                Text("Szukaj")
-                            }
+                    }
+                }
+            }
+
+            item {
+                SuggestionChips(
+                    title = "Składniki z listy",
+                    query = state.query,
+                    suggestions = suggestions,
+                    onSelect = viewModel::selectIngredient
+                )
+            }
+
+            item {
+                SelectedIngredientChips(
+                    title = "Wybrane składniki",
+                    ingredients = state.ingredients,
+                    emptyText = "Nie wybrano jeszcze składników.",
+                    onRemove = viewModel::removeIngredient
+                )
+            }
+
+            item {
+                OutlinedButton(
+                    onClick = viewModel::clearSelectedIngredients,
+                    enabled = hasSelectedItems,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Wyczyść listę") }
+            }
+
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Stałe składniki", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (state.includePantryIngredients) {
+                                    "Będą automatycznie dodane do wyszukiwania."
+                                } else {
+                                    "Są tymczasowo pomijane."
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
+                        Switch(checked = state.includePantryIngredients, onCheckedChange = viewModel::setIncludePantryIngredients)
                     }
                 }
             }
+
+            item {
+                PlainIngredientChips(
+                    title = if (state.includePantryIngredients) "Uwzględniane stałe składniki" else "Stałe składniki pomijane",
+                    items = state.pantryIngredients,
+                    enabled = state.includePantryIngredients,
+                    emptyText = "Dodaj stałe składniki w ustawieniach."
+                )
+            }
+
+            state.error?.let { item { ErrorCard(it) } }
+            searchError?.let { item { ErrorCard(it) } }
         }
 
-        item {
-            SuggestionChips(
-                title = "Składniki z listy",
-                query = state.query,
-                suggestions = suggestions,
-                onSelect = viewModel::selectIngredient
-            )
-        }
-
-        item {
-            SelectedIngredientChips(
-                title = "Wybrane składniki",
-                ingredients = state.ingredients,
-                emptyText = "Nie wybrano jeszcze składników.",
-                onRemove = viewModel::removeIngredient
-            )
-        }
-
-        item {
-            OutlinedButton(
-                onClick = viewModel::clearSelectedIngredients,
-                enabled = hasSelectedItems,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Wyczyść listę") }
-        }
-
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Stałe składniki", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = if (state.includePantryIngredients) {
-                                "Będą automatycznie dodane do wyszukiwania."
-                            } else {
-                                "Są tymczasowo pomijane."
-                            },
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    Switch(checked = state.includePantryIngredients, onCheckedChange = viewModel::setIncludePantryIngredients)
-                }
+        Button(
+            onClick = {
+                searchRequestVersion = successfulSearchVersion
+                viewModel.search()
+            },
+            enabled = !searchLoading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            if (searchLoading) {
+                CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(12.dp))
+                Text("Ładuję przepisy…")
+            } else {
+                Text("Szukaj przepisów")
             }
         }
-
-        item {
-            PlainIngredientChips(
-                title = if (state.includePantryIngredients) "Uwzględniane stałe składniki" else "Stałe składniki pomijane",
-                items = state.pantryIngredients,
-                enabled = state.includePantryIngredients,
-                emptyText = "Dodaj stałe składniki w ustawieniach."
-            )
-        }
-
-        state.error?.let { item { ErrorCard(it) } }
-        searchError?.let { item { ErrorCard(it) } }
     }
 }
