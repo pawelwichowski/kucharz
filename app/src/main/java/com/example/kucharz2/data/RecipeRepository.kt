@@ -17,6 +17,8 @@ import java.text.Normalizer
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val DEFAULT_RECIPE_PAGE_LIMIT = 61
+
 @Singleton
 class RecipeRepository @Inject constructor(
     private val api: RecipeApi,
@@ -28,6 +30,8 @@ class RecipeRepository @Inject constructor(
     private var lastRequiredIngredients: List<String> = emptyList()
     private var lastIncludePantryIngredients: Boolean = true
     private var lastFilters: RecipeFilters = RecipeFilters()
+    private var lastLimit: Int = DEFAULT_RECIPE_PAGE_LIMIT
+    private var nextStart: Int = 0
 
     private val _availableIngredients = MutableStateFlow<List<String>>(emptyList())
     val availableIngredients: StateFlow<List<String>> = _availableIngredients.asStateFlow()
@@ -40,6 +44,12 @@ class RecipeRepository @Inject constructor(
 
     private val _searchLoading = MutableStateFlow(false)
     val searchLoading: StateFlow<Boolean> = _searchLoading.asStateFlow()
+
+    private val _loadMoreLoading = MutableStateFlow(false)
+    val loadMoreLoading: StateFlow<Boolean> = _loadMoreLoading.asStateFlow()
+
+    private val _canLoadMore = MutableStateFlow(false)
+    val canLoadMore: StateFlow<Boolean> = _canLoadMore.asStateFlow()
 
     private val _searchError = MutableStateFlow<String?>(null)
     val searchError: StateFlow<String?> = _searchError.asStateFlow()
@@ -55,7 +65,7 @@ class RecipeRepository @Inject constructor(
     fun refreshRecipesInBackground(
         userIngredients: List<String>,
         requiredIngredients: List<String> = emptyList(),
-        limit: Int = 50,
+        limit: Int = DEFAULT_RECIPE_PAGE_LIMIT,
         includePantryIngredients: Boolean = true,
         filters: RecipeFilters = RecipeFilters()
     ) {
@@ -63,9 +73,12 @@ class RecipeRepository @Inject constructor(
         lastRequiredIngredients = requiredIngredients
         lastIncludePantryIngredients = includePantryIngredients
         lastFilters = filters
+        lastLimit = limit
         refreshJob?.cancel()
         refreshJob = searchScope.launch {
             _searchLoading.value = true
+            _loadMoreLoading.value = false
+            _canLoadMore.value = false
             _searchError.value = null
             runCatching { refreshRecipes(userIngredients, requiredIngredients, limit, includePantryIngredients, filters) }
                 .onSuccess { _successfulSearchVersion.value += 1 }
@@ -76,7 +89,7 @@ class RecipeRepository @Inject constructor(
         }
     }
 
-    fun refreshCurrentRecipesInBackground(limit: Int = 100, filters: RecipeFilters = lastFilters) {
+    fun refreshCurrentRecipesInBackground(limit: Int = lastLimit, filters: RecipeFilters = lastFilters) {
         refreshRecipesInBackground(
             userIngredients = lastUserIngredients,
             requiredIngredients = lastRequiredIngredients,
@@ -86,6 +99,39 @@ class RecipeRepository @Inject constructor(
         )
     }
 
+    fun loadMoreRecipesInBackground() {
+        if (_searchLoading.value || _loadMoreLoading.value || !_canLoadMore.value) return
+
+        val start = nextStart
+        searchScope.launch {
+            _loadMoreLoading.value = true
+            _searchError.value = null
+            runCatching {
+                fetchRecipesPage(
+                    userIngredients = lastUserIngredients,
+                    requiredIngredients = lastRequiredIngredients,
+                    limit = lastLimit,
+                    includePantryIngredients = lastIncludePantryIngredients,
+                    filters = lastFilters,
+                    start = start
+                )
+            }.onSuccess { page ->
+                nextStart = start + page.rawCount
+                _canLoadMore.value = page.rawCount > 0
+
+                if (page.recipes.isNotEmpty()) {
+                    val combined = (_exactRecipes.value + _nearRecipes.value + page.recipes)
+                        .distinctBy { it.id }
+                        .sortByUsedIngredients(lastFilters.usedIngredientsSortMode)
+                    setRecipeResults(combined)
+                }
+            }.onFailure { throwable ->
+                _searchError.value = throwable.message ?: "Nie udało się pobrać kolejnych przepisów."
+            }
+            _loadMoreLoading.value = false
+        }
+    }
+
     fun clearSearchError() {
         _searchError.value = null
     }
@@ -93,10 +139,31 @@ class RecipeRepository @Inject constructor(
     suspend fun refreshRecipes(
         userIngredients: List<String>,
         requiredIngredients: List<String> = emptyList(),
-        limit: Int = 50,
+        limit: Int = DEFAULT_RECIPE_PAGE_LIMIT,
         includePantryIngredients: Boolean = true,
         filters: RecipeFilters = RecipeFilters()
     ) = withContext(Dispatchers.IO) {
+        val page = fetchRecipesPage(
+            userIngredients = userIngredients,
+            requiredIngredients = requiredIngredients,
+            limit = limit,
+            includePantryIngredients = includePantryIngredients,
+            filters = filters,
+            start = 0
+        )
+        nextStart = page.rawCount
+        _canLoadMore.value = page.rawCount > 0
+        setRecipeResults(page.recipes)
+    }
+
+    private suspend fun fetchRecipesPage(
+        userIngredients: List<String>,
+        requiredIngredients: List<String>,
+        limit: Int,
+        includePantryIngredients: Boolean,
+        filters: RecipeFilters,
+        start: Int
+    ): RecipePage = withContext(Dispatchers.IO) {
         val pantry = if (includePantryIngredients) dao.getPantryIngredientsOnce().map { it.name } else emptyList()
         val permanentExclusions = dao.getPermanentExcludedIngredientsOnce().map { it.name }
         val available = normalizeInput(userIngredients + pantry)
@@ -110,7 +177,7 @@ class RecipeRepository @Inject constructor(
             focus = required.joinToString(","),
             exclude = excluded.joinToString(","),
             categoryName = filters.categoryNames(),
-            start = 0,
+            start = start,
             limit = limit,
             lang = "pl"
         )
@@ -119,13 +186,18 @@ class RecipeRepository @Inject constructor(
             throw IllegalStateException("Supercook zwrócił błąd ${response.code()}: ${response.errorBody()?.string().orEmpty()}")
         }
 
-        val parsed = SupercookParser.parse(response.body())
+        val rawRecipes = SupercookParser.parse(response.body())
+        val filteredRecipes = rawRecipes
             .filter { recipe -> filters.maxIngredients?.let { recipe.ingredients.size <= it } ?: true }
             .filter { recipe -> recipe.matchesMissingIngredientMode(filters.missingIngredientMode) }
             .sortByUsedIngredients(filters.usedIngredientsSortMode)
 
-        _exactRecipes.value = parsed.filter { it.missingCount == 0 }
-        _nearRecipes.value = parsed.filter { it.missingCount > 0 }
+        RecipePage(rawCount = rawRecipes.size, recipes = filteredRecipes)
+    }
+
+    private fun setRecipeResults(recipes: List<Recipe>) {
+        _exactRecipes.value = recipes.filter { it.missingCount == 0 }
+        _nearRecipes.value = recipes.filter { it.missingCount > 0 }
     }
 
     suspend fun getRecipeDetails(recipe: Recipe): Recipe = withContext(Dispatchers.IO) {
@@ -214,6 +286,11 @@ class RecipeRepository @Inject constructor(
     }
 
     private fun Recipe.usedIngredientsCount(): Int = (ingredients.size - missingIngredients.size).coerceAtLeast(0)
+
+    private data class RecipePage(
+        val rawCount: Int,
+        val recipes: List<Recipe>
+    )
 }
 
 object SupercookParser {
