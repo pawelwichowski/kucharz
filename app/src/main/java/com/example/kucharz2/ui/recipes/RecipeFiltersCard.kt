@@ -2,6 +2,7 @@ package com.example.kucharz2.ui.recipes
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -284,7 +285,7 @@ private fun ExpandableFilterSection(
     value: String,
     expanded: Boolean,
     onToggle: () -> Unit,
-    content: @Composable Column.() -> Unit
+    content: @Composable ColumnScope.() -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = onToggle, modifier = Modifier.fillMaxWidth()) {
