@@ -169,6 +169,7 @@ data class IngredientInputUiState(
     val input: String = "",
     val ingredients: List<SelectedIngredient> = emptyList(),
     val pantryIngredients: List<String> = emptyList(),
+    val requiredPantryIngredients: Set<String> = emptySet(),
     val includePantryIngredients: Boolean = true,
     val error: String? = null
 )
@@ -183,7 +184,11 @@ class IngredientInputViewModel @Inject constructor(
         editableState,
         repository.observePantryIngredients()
     ) { state, pantry ->
-        state.copy(pantryIngredients = pantry.map { it.name })
+        val pantryNames = pantry.map { it.name }
+        state.copy(
+            pantryIngredients = pantryNames,
+            requiredPantryIngredients = state.requiredPantryIngredients.intersect(pantryNames.toSet())
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IngredientInputUiState())
 
     val searchLoading = repository.searchLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -218,6 +223,15 @@ class IngredientInputViewModel @Inject constructor(
         )
     }
 
+    fun togglePantryRequired(name: String, required: Boolean) = editableState.update { state ->
+        val updated = if (required) {
+            state.requiredPantryIngredients + name
+        } else {
+            state.requiredPantryIngredients - name
+        }
+        state.copy(requiredPantryIngredients = updated, error = null)
+    }
+
     fun clearIngredients() = editableState.update { it.copy(ingredients = emptyList()) }
 
     fun setIncludePantryIngredients(enabled: Boolean) = editableState.update {
@@ -230,7 +244,9 @@ class IngredientInputViewModel @Inject constructor(
         addIngredient()
         val state = editableState.value
         val availableIngredients = state.ingredients.map { it.name }
-        val requiredIngredients = state.ingredients.filter { it.required }.map { it.name }
+        val requiredUserIngredients = state.ingredients.filter { it.required }.map { it.name }
+        val requiredPantryIngredients = if (state.includePantryIngredients) state.requiredPantryIngredients.toList() else emptyList()
+        val requiredIngredients = requiredUserIngredients + requiredPantryIngredients
         val hasPantryIngredients = uiState.value.pantryIngredients.isNotEmpty()
         if (availableIngredients.isEmpty() && (!state.includePantryIngredients || !hasPantryIngredients)) {
             editableState.update { it.copy(error = "Dodaj przynajmniej jeden składnik albo włącz stałe składniki.") }
@@ -261,7 +277,7 @@ private fun IngredientInputScreen(
         item {
             HeaderCard(
                 title = "Co masz w lodówce?",
-                subtitle = "Wpisz składniki po przecinku albo dodawaj je pojedynczo. Zaznacz checkbox Wymagany przy składniku, który musi wystąpić w przepisie."
+                subtitle = "Wpisz składniki po przecinku albo dodawaj je pojedynczo. Checkbox przy składniku oznacza, że ma trafić też do required."
             )
         }
         item {
@@ -279,8 +295,10 @@ private fun IngredientInputScreen(
             }
         }
         item {
-            SelectedIngredientCards(
+            RequiredIngredientChips(
+                title = "Wybrane składniki",
                 ingredients = state.ingredients,
+                emptyText = "Brak składników z lodówki.",
                 onRequiredChange = viewModel::toggleIngredientRequired,
                 onRemove = viewModel::removeIngredient
             )
@@ -296,7 +314,7 @@ private fun IngredientInputScreen(
                         Text("Uwzględnij stałe składniki", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Text(
                             text = if (state.includePantryIngredients) {
-                                "Stałe składniki zostaną dodane do available."
+                                "Stałe składniki zostaną dodane do available. Zaznacz checkbox przy stałym składniku, żeby dodać go też do required."
                             } else {
                                 "Wyszukiwanie użyje tylko składników wpisanych powyżej."
                             },
@@ -311,11 +329,13 @@ private fun IngredientInputScreen(
             }
         }
         item {
-            IngredientChips(
+            PantryRequiredIngredientChips(
                 title = if (state.includePantryIngredients) "Stałe składniki dodawane do available" else "Stałe składniki pomijane w szukaniu",
                 items = state.pantryIngredients,
+                requiredItems = state.requiredPantryIngredients,
+                enabled = state.includePantryIngredients,
                 emptyText = "Dodaj stałe składniki w zakładce Ustawienia.",
-                onRemove = null
+                onRequiredChange = viewModel::togglePantryRequired
             )
         }
         item {
@@ -867,40 +887,104 @@ private fun HeaderCard(title: String, subtitle: String) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SelectedIngredientCards(
+private fun RequiredIngredientChips(
+    title: String,
     ingredients: List<SelectedIngredient>,
+    emptyText: String,
     onRequiredChange: (String, Boolean) -> Unit,
     onRemove: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionTitle("Wybrane składniki")
+        SectionTitle(title)
         if (ingredients.isEmpty()) {
-            Text("Brak składników z lodówki.", style = MaterialTheme.typography.bodyMedium)
+            Text(emptyText, style = MaterialTheme.typography.bodyMedium)
         } else {
-            ingredients.forEach { ingredient ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = ingredient.name,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = ingredient.required,
-                                onCheckedChange = { onRequiredChange(ingredient.name, it) }
-                            )
-                            Text("Wymagany", style = MaterialTheme.typography.bodyMedium)
-                        }
-                        TextButton(onClick = { onRemove(ingredient.name) }) { Text("Usuń") }
-                    }
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ingredients.forEach { ingredient ->
+                    CompactIngredientChip(
+                        name = ingredient.name,
+                        checked = ingredient.required,
+                        enabled = true,
+                        onCheckedChange = { onRequiredChange(ingredient.name, it) },
+                        onRemove = { onRemove(ingredient.name) }
+                    )
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PantryRequiredIngredientChips(
+    title: String,
+    items: List<String>,
+    requiredItems: Set<String>,
+    enabled: Boolean,
+    emptyText: String,
+    onRequiredChange: (String, Boolean) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionTitle(title)
+        if (items.isEmpty()) {
+            Text(emptyText, style = MaterialTheme.typography.bodyMedium)
+        } else {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items.forEach { item ->
+                    CompactIngredientChip(
+                        name = item,
+                        checked = item in requiredItems,
+                        enabled = enabled,
+                        onCheckedChange = { onRequiredChange(item, it) },
+                        onRemove = null
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactIngredientChip(
+    name: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onRemove: (() -> Unit)?
+) {
+    Card(
+        modifier = Modifier.widthIn(max = 240.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Checkbox(
+                checked = checked,
+                enabled = enabled,
+                onCheckedChange = onCheckedChange
+            )
+            Text(
+                text = name,
+                modifier = Modifier.weight(1f, fill = false),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            if (onRemove != null) {
+                TextButton(onClick = onRemove) { Text("×") }
             }
         }
     }
