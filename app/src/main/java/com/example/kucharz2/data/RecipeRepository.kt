@@ -115,7 +115,7 @@ class RecipeRepository @Inject constructor(
         val parsed = SupercookParser.parse(response.body())
             .filter { recipe -> filters.maxIngredients?.let { recipe.ingredients.size <= it } ?: true }
             .filter { recipe -> recipe.matchesMissingIngredientMode(filters.missingIngredientMode) }
-            .sortedWith(compareBy<Recipe> { it.missingCount }.thenBy { it.title.lowercase() })
+            .sortByUsedIngredients(filters.usedIngredientsSortMode)
 
         _exactRecipes.value = parsed.filter { it.missingCount == 0 }
         _nearRecipes.value = parsed.filter { it.missingCount > 0 }
@@ -170,15 +170,29 @@ class RecipeRepository @Inject constructor(
     private fun normalizeInput(items: List<String>): List<String> =
         items.map { it.cleanupName() }.filter { it.isNotBlank() }.distinctBy { it.normalizedKey() }
 
-    private fun Recipe.matchesMissingIngredientMode(mode: MissingIngredientMode?): Boolean = when (mode) {
-        null -> true
+    private fun Recipe.matchesMissingIngredientMode(mode: MissingIngredientMode): Boolean = when (mode) {
         MissingIngredientMode.EXACT_0 -> missingCount == 0
-        MissingIngredientMode.AT_LEAST_0 -> missingCount >= 0
+        MissingIngredientMode.MAX_1 -> missingCount <= 1
         MissingIngredientMode.EXACT_1 -> missingCount == 1
-        MissingIngredientMode.AT_LEAST_1 -> missingCount >= 1
+        MissingIngredientMode.MAX_2 -> missingCount <= 2
         MissingIngredientMode.EXACT_2 -> missingCount == 2
-        MissingIngredientMode.AT_LEAST_2 -> missingCount >= 2
     }
+
+    private fun List<Recipe>.sortByUsedIngredients(mode: UsedIngredientsSortMode?): List<Recipe> = when (mode) {
+        UsedIngredientsSortMode.MOST_USED -> sortedWith(
+            compareByDescending<Recipe> { it.usedIngredientsCount() }
+                .thenBy { it.missingCount }
+                .thenBy { it.title.lowercase() }
+        )
+        UsedIngredientsSortMode.LEAST_USED -> sortedWith(
+            compareBy<Recipe> { it.usedIngredientsCount() }
+                .thenBy { it.missingCount }
+                .thenBy { it.title.lowercase() }
+        )
+        null -> sortedWith(compareBy<Recipe> { it.missingCount }.thenBy { it.title.lowercase() })
+    }
+
+    private fun Recipe.usedIngredientsCount(): Int = (ingredients.size - missingIngredients.size).coerceAtLeast(0)
 }
 
 object SupercookParser {
