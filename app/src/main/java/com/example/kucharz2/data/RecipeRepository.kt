@@ -44,6 +44,9 @@ class RecipeRepository @Inject constructor(
     private val _searchError = MutableStateFlow<String?>(null)
     val searchError: StateFlow<String?> = _searchError.asStateFlow()
 
+    private val _successfulSearchVersion = MutableStateFlow(0)
+    val successfulSearchVersion: StateFlow<Int> = _successfulSearchVersion.asStateFlow()
+
     fun observeShoppingItems() = dao.observeShoppingItems()
     fun observePantryIngredients() = dao.observePantryIngredients()
     fun observePermanentExcludedIngredients() = dao.observePermanentExcludedIngredients()
@@ -65,6 +68,7 @@ class RecipeRepository @Inject constructor(
             _searchLoading.value = true
             _searchError.value = null
             runCatching { refreshRecipes(userIngredients, requiredIngredients, limit, includePantryIngredients, filters) }
+                .onSuccess { _successfulSearchVersion.value += 1 }
                 .onFailure { throwable ->
                     _searchError.value = throwable.message ?: "Nie udało się pobrać przepisów."
                 }
