@@ -24,7 +24,8 @@ import com.example.kucharz2.ui.components.HeaderCard
 fun SettingsScreen(
     isDarkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
-    onOpenPantry: () -> Unit
+    onOpenPantry: () -> Unit,
+    onOpenPermanentExclusions: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -52,6 +53,15 @@ fun SettingsScreen(
                     Text("Stałe składniki", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Zarządzaj składnikami, które zwykle masz w domu.")
                     Button(onClick = onOpenPantry) { Text("Otwórz stałe składniki") }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Stałe wykluczenia", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Zarządzaj składnikami, których aplikacja ma zawsze unikać w wynikach.")
+                    Button(onClick = onOpenPermanentExclusions) { Text("Otwórz stałe wykluczenia") }
                 }
             }
         }
