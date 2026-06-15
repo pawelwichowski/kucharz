@@ -80,12 +80,12 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private sealed class Screen(val route: String, val label: String, val icon: String) {
-    data object Ingredients : Screen("ingredients", "Ingredients", "🥕")
-    data object Recipes : Screen("recipes", "Recipes", "🍲")
-    data object Shopping : Screen("shopping", "Shopping", "✅")
-    data object History : Screen("history", "Saved", "⭐")
-    data object Pantry : Screen("pantry", "Pantry", "🧂")
-    data object Settings : Screen("settings", "Settings", "⚙️")
+    data object Ingredients : Screen("ingredients", "Składniki", "🥕")
+    data object Recipes : Screen("recipes", "Przepisy", "🍲")
+    data object Shopping : Screen("shopping", "Zakupy", "✅")
+    data object History : Screen("history", "Zapisane", "⭐")
+    data object Pantry : Screen("pantry", "Stałe", "🧂")
+    data object Settings : Screen("settings", "Ustawienia", "⚙️")
 }
 
 private val bottomScreens = listOf(
@@ -107,7 +107,7 @@ fun KucharzApp(
     val currentRoute = backStack?.destination?.route ?: Screen.Ingredients.route
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Recipe Finder", fontWeight = FontWeight.Bold) }) },
+        topBar = { TopAppBar(title = { Text("Kucharz", fontWeight = FontWeight.Bold) }) },
         bottomBar = {
             NavigationBar {
                 bottomScreens.forEach { screen ->
@@ -228,7 +228,7 @@ class IngredientInputViewModel @Inject constructor(
         val hasPantryIngredients = uiState.value.pantryIngredients.isNotEmpty()
 
         if (availableIngredients.isEmpty() && (!state.includePantryIngredients || !hasPantryIngredients)) {
-            editableState.update { it.copy(error = "Choose at least one ingredient or enable pantry ingredients.") }
+            editableState.update { it.copy(error = "Wybierz przynajmniej jeden składnik albo włącz stałe składniki.") }
             return
         }
 
@@ -256,23 +256,23 @@ private fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltView
     ) {
         item {
             HeaderCard(
-                title = "Choose ingredients",
-                subtitle = "Type an ingredient name and choose one of the standardized suggestions. The checkbox sends that ingredient as required."
+                title = "Wybierz składniki",
+                subtitle = "Wpisz nazwę składnika i wybierz jedną z ustandaryzowanych podpowiedzi. Checkbox przy składniku oznacza, że zostanie wysłany także jako wymagany."
             )
         }
         item {
             OutlinedTextField(
                 value = state.query,
                 onValueChange = viewModel::onQueryChange,
-                label = { Text("Search standardized ingredients") },
-                placeholder = { Text("e.g. eggs, milk, tomato") },
+                label = { Text("Szukaj składnika z listy") },
+                placeholder = { Text("np. jajka, maka, pomidor") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
         }
         item {
             SuggestionChips(
-                title = "Matching ingredients",
+                title = "Pasujące składniki",
                 query = state.query,
                 suggestions = suggestions,
                 onSelect = viewModel::selectIngredient
@@ -280,9 +280,9 @@ private fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltView
         }
         item {
             RequiredIngredientChips(
-                title = "Selected ingredients",
+                title = "Wybrane składniki",
                 ingredients = state.ingredients,
-                emptyText = "No fridge ingredients selected.",
+                emptyText = "Nie wybrano jeszcze składników z lodówki.",
                 onRequiredChange = viewModel::toggleIngredientRequired,
                 onRemove = viewModel::removeIngredient
             )
@@ -295,12 +295,12 @@ private fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltView
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Include pantry ingredients", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("Uwzględnij stałe składniki", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Text(
                             text = if (state.includePantryIngredients) {
-                                "Pantry ingredients are added to available. Tick a pantry ingredient to also send it as required."
+                                "Stałe składniki zostaną dodane do dostępnych. Zaznacz checkbox przy stałym składniku, żeby dodać go też do wymaganych."
                             } else {
-                                "Search will use only selected fridge ingredients."
+                                "Wyszukiwanie użyje tylko składników wybranych powyżej."
                             },
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -311,11 +311,11 @@ private fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltView
         }
         item {
             PantryRequiredIngredientChips(
-                title = if (state.includePantryIngredients) "Pantry ingredients" else "Pantry ingredients ignored",
+                title = if (state.includePantryIngredients) "Stałe składniki" else "Stałe składniki pomijane",
                 items = state.pantryIngredients,
                 requiredItems = state.requiredPantryIngredients,
                 enabled = state.includePantryIngredients,
-                emptyText = "Add pantry ingredients in Settings.",
+                emptyText = "Dodaj stałe składniki w ustawieniach.",
                 onRequiredChange = viewModel::togglePantryRequired
             )
         }
@@ -328,9 +328,9 @@ private fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltView
                 if (searchLoading) {
                     CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
-                    Text("Loading recipes…")
+                    Text("Ładuję przepisy…")
                 } else {
-                    Text("Search recipes")
+                    Text("Szukaj przepisów")
                 }
             }
         }
@@ -368,14 +368,14 @@ class RecipeResultsViewModel @Inject constructor(
     fun saveRecipe(recipe: Recipe) {
         viewModelScope.launch {
             repository.addToHistory(repository.getRecipeDetails(recipe))
-            _message.value = "Saved recipe: ${recipe.title}"
+            _message.value = "Zapisano przepis: ${recipe.title}"
         }
     }
 
     fun addMissingToShopping(recipe: Recipe) {
         viewModelScope.launch {
             repository.addMissingIngredientsToShoppingList(recipe)
-            _message.value = "Added missing ingredients to shopping list."
+            _message.value = "Dodano brakujące składniki do listy zakupów."
         }
     }
 
@@ -408,8 +408,8 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
         ) {
             item {
                 HeaderCard(
-                    title = if (showMissingRecipes) "Recipes with missing ingredients" else "Complete recipes",
-                    subtitle = if (available.isEmpty()) "Search by ingredients first." else "Available: ${available.joinToString()}"
+                    title = if (showMissingRecipes) "Przepisy z brakującymi składnikami" else "Pełne przepisy",
+                    subtitle = if (available.isEmpty()) "Najpierw wyszukaj po składnikach." else "Dostępne: ${available.joinToString()}"
                 )
             }
             item {
@@ -419,7 +419,7 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Show only recipes with missing ingredients", modifier = Modifier.weight(1f))
+                        Text("Pokaż tylko przepisy z brakującymi składnikami", modifier = Modifier.weight(1f))
                         Switch(
                             checked = showMissingRecipes,
                             enabled = !searchLoading,
@@ -437,13 +437,13 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(12.dp))
-                            Text("Loading recipes…")
+                            Text("Ładuję przepisy…")
                         }
                     }
                 }
             }
             if (!searchLoading && visibleRecipes.isEmpty()) {
-                item { EmptyState(if (showMissingRecipes) "No near-match recipes found." else "No complete recipes found.") }
+                item { EmptyState(if (showMissingRecipes) "Nie znaleziono podobnych przepisów." else "Nie znaleziono pełnych przepisów.") }
             } else {
                 items(visibleRecipes, key = { it.id }) { recipe ->
                     RecipeCard(
@@ -490,30 +490,30 @@ private fun ShoppingListScreen(viewModel: ShoppingListViewModel = hiltViewModel(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { HeaderCard("Shopping list", "Missing ingredients can be added here from recipe cards.") }
+        item { HeaderCard("Lista zakupów", "Brakujące składniki można dodać tutaj z kart przepisów.") }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = input,
                     onValueChange = viewModel::onInputChange,
-                    label = { Text("Add product") },
+                    label = { Text("Dodaj produkt") },
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
                 Spacer(Modifier.width(8.dp))
-                Button(onClick = viewModel::addItem) { Text("Add") }
+                Button(onClick = viewModel::addItem) { Text("Dodaj") }
             }
         }
-        item { OutlinedButton(onClick = viewModel::deleteChecked, enabled = items.any { it.checked }) { Text("Remove bought") } }
+        item { OutlinedButton(onClick = viewModel::deleteChecked, enabled = items.any { it.checked }) { Text("Usuń kupione") } }
         if (items.isEmpty()) {
-            item { EmptyState("Your shopping list is empty.") }
+            item { EmptyState("Lista zakupów jest pusta.") }
         } else {
             items(items, key = { it.id }) { item ->
                 Card(Modifier.fillMaxWidth()) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = item.checked, onCheckedChange = { viewModel.setChecked(item, it) })
                         Text(item.name, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { viewModel.deleteItem(item) }) { Text("Remove") }
+                        TextButton(onClick = { viewModel.deleteItem(item) }) { Text("Usuń") }
                     }
                 }
             }
@@ -553,10 +553,10 @@ private fun SavedRecipesScreen(viewModel: SavedRecipesViewModel = hiltViewModel(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { HeaderCard("Saved recipes", "Recipes saved with the Save button appear here.") }
-        item { OutlinedButton(onClick = viewModel::clear, enabled = savedRecipes.isNotEmpty()) { Text("Clear saved") } }
+        item { HeaderCard("Zapisane przepisy", "Tutaj pojawiają się przepisy zapisane przyciskiem Zapisz.") }
+        item { OutlinedButton(onClick = viewModel::clear, enabled = savedRecipes.isNotEmpty()) { Text("Wyczyść zapisane") } }
         if (savedRecipes.isEmpty()) {
-            item { EmptyState("You have no saved recipes yet.") }
+            item { EmptyState("Nie masz jeszcze zapisanych przepisów.") }
         } else {
             items(savedRecipes, key = { it.recipeId }) { item ->
                 SavedRecipeCard(item = item, onOpen = { viewModel.open(item) }, onDelete = { viewModel.delete(item) })
@@ -572,10 +572,10 @@ private fun SavedRecipeCard(item: RecipeHistoryEntity, onOpen: () -> Unit, onDel
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("Ingredients: ${item.ingredients.size}")
+            Text("Składniki: ${item.ingredients.size}")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onOpen) { Text("Open") }
-                OutlinedButton(onClick = onDelete) { Text("Remove") }
+                Button(onClick = onOpen) { Text("Otwórz") }
+                OutlinedButton(onClick = onDelete) { Text("Usuń") }
             }
         }
     }
@@ -609,25 +609,25 @@ private fun PantryScreen(viewModel: PantryViewModel = hiltViewModel()) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { HeaderCard("Pantry ingredients", "Choose pantry ingredients from the same standardized catalog.") }
+        item { HeaderCard("Stałe składniki", "Wybierz stałe składniki z tego samego ustandaryzowanego katalogu.") }
         item {
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::onQueryChange,
-                label = { Text("Search standardized pantry ingredient") },
+                label = { Text("Szukaj stałego składnika z listy") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
         }
-        item { SuggestionChips("Matching pantry ingredients", query, suggestions, viewModel::selectPantryIngredient) }
+        item { SuggestionChips("Pasujące stałe składniki", query, suggestions, viewModel::selectPantryIngredient) }
         if (items.isEmpty()) {
-            item { EmptyState("No pantry ingredients added yet.") }
+            item { EmptyState("Nie dodano jeszcze stałych składników.") }
         } else {
             items(items, key = { it.id }) { item ->
                 Card(Modifier.fillMaxWidth()) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(item.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                        TextButton(onClick = { viewModel.deleteItem(item) }) { Text("Remove") }
+                        TextButton(onClick = { viewModel.deleteItem(item) }) { Text("Usuń") }
                     }
                 }
             }
@@ -646,13 +646,13 @@ private fun SettingsScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { HeaderCard("Settings", "Application preferences.") }
+        item { HeaderCard("Ustawienia", "Preferencje aplikacji.") }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Dark mode", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(if (isDarkTheme) "The app uses the dark theme." else "The app uses the light theme.")
+                        Text("Tryb ciemny", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(if (isDarkTheme) "Aplikacja używa ciemnego motywu." else "Aplikacja używa jasnego motywu.")
                     }
                     Switch(checked = isDarkTheme, onCheckedChange = onDarkThemeChange)
                 }
@@ -661,9 +661,9 @@ private fun SettingsScreen(
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Pantry ingredients", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Manage ingredients that are usually available at home.")
-                    Button(onClick = onOpenPantry) { Text("Open pantry ingredients") }
+                    Text("Stałe składniki", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Zarządzaj składnikami, które zwykle masz w domu.")
+                    Button(onClick = onOpenPantry) { Text("Otwórz stałe składniki") }
                 }
             }
         }
@@ -688,29 +688,29 @@ private fun RecipeCard(
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(recipe.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        text = if (recipe.ingredients.isEmpty()) "No ingredients returned by the API." else recipe.ingredients.take(4).joinToString(),
+                        text = if (recipe.ingredients.isEmpty()) "API nie zwróciło składników." else recipe.ingredients.take(4).joinToString(),
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                     if (recipe.missingCount > 0) {
-                        Text("Missing: ${recipe.missingIngredients.joinToString()}", color = MaterialTheme.colorScheme.error)
+                        Text("Brakuje: ${recipe.missingIngredients.joinToString()}", color = MaterialTheme.colorScheme.error)
                     }
                 }
                 recipe.imageUrl?.let { imageUrl ->
                     AsyncImage(
                         model = imageUrl,
-                        contentDescription = "Recipe image for ${recipe.title}",
+                        contentDescription = "Zdjęcie przepisu ${recipe.title}",
                         modifier = Modifier.width(104.dp).height(104.dp).clip(MaterialTheme.shapes.medium),
                         contentScale = ContentScale.Crop
                     )
                 }
             }
             FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onOpen) { Text("Details") }
-                OutlinedButton(onClick = onSave, enabled = !isSaved) { Text(if (isSaved) "Saved" else "Save") }
+                Button(onClick = onOpen) { Text("Szczegóły") }
+                OutlinedButton(onClick = onSave, enabled = !isSaved) { Text(if (isSaved) "Zapisany" else "Zapisz") }
                 if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
-                    OutlinedButton(onClick = onAddMissing) { Text("Add missing") }
+                    OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
                 }
             }
         }
@@ -730,19 +730,19 @@ private fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
                     }
                 }
                 if (recipe.missingIngredients.isNotEmpty()) {
-                    SectionTitle("Missing ingredients")
+                    SectionTitle("Brakujące składniki")
                     recipe.missingIngredients.forEach { Text("• $it", color = MaterialTheme.colorScheme.error) }
                 }
-                SectionTitle("Ingredients")
-                if (recipe.ingredients.isEmpty()) Text("The API did not return ingredients for this recipe.")
+                SectionTitle("Składniki")
+                if (recipe.ingredients.isEmpty()) Text("API nie zwróciło składników dla tego przepisu.")
                 recipe.ingredients.forEach { Text("• $it") }
-                SectionTitle("Instructions")
-                if (recipe.instructions.isEmpty()) Text("Loading instructions, or the API did not return them for this recipe.")
+                SectionTitle("Przygotowanie")
+                if (recipe.instructions.isEmpty()) Text("Ładuję instrukcje albo API nie zwróciło ich dla tego przepisu.")
                 recipe.instructions.forEachIndexed { index, step -> Text("${index + 1}. $step") }
-                recipe.sourceUrl?.let { Text("Source: $it", style = MaterialTheme.typography.bodySmall) }
+                recipe.sourceUrl?.let { Text("Źródło: $it", style = MaterialTheme.typography.bodySmall) }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Zamknij") } }
     )
 }
 
@@ -757,9 +757,9 @@ private fun SuggestionChips(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTitle(title)
         if (query.isBlank()) {
-            Text("Start typing to see suggestions.")
+            Text("Zacznij wpisywać, aby zobaczyć podpowiedzi.")
         } else if (suggestions.isEmpty()) {
-            Text("No matching standardized ingredient.", color = MaterialTheme.colorScheme.error)
+            Text("Brak pasującego składnika na liście.", color = MaterialTheme.colorScheme.error)
         } else {
             FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 suggestions.forEach { suggestion ->
