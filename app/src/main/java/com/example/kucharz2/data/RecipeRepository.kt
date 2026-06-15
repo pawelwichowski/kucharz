@@ -25,6 +25,7 @@ class RecipeRepository @Inject constructor(
     private val searchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var refreshJob: Job? = null
     private var lastUserIngredients: List<String> = emptyList()
+    private var lastRequiredIngredients: List<String> = emptyList()
     private var lastIncludePantryIngredients: Boolean = true
 
     private val _availableIngredients = MutableStateFlow<List<String>>(emptyList())
@@ -48,16 +49,18 @@ class RecipeRepository @Inject constructor(
 
     fun refreshRecipesInBackground(
         userIngredients: List<String>,
+        requiredIngredients: List<String> = emptyList(),
         limit: Int = 20,
         includePantryIngredients: Boolean = true
     ) {
         lastUserIngredients = userIngredients
+        lastRequiredIngredients = requiredIngredients
         lastIncludePantryIngredients = includePantryIngredients
         refreshJob?.cancel()
         refreshJob = searchScope.launch {
             _searchLoading.value = true
             _searchError.value = null
-            runCatching { refreshRecipes(userIngredients, limit, includePantryIngredients) }
+            runCatching { refreshRecipes(userIngredients, requiredIngredients, limit, includePantryIngredients) }
                 .onFailure { throwable ->
                     _searchError.value = throwable.message ?: "Nie udało się pobrać przepisów."
                 }
@@ -68,6 +71,7 @@ class RecipeRepository @Inject constructor(
     fun refreshCurrentRecipesInBackground(limit: Int = 100) {
         refreshRecipesInBackground(
             userIngredients = lastUserIngredients,
+            requiredIngredients = lastRequiredIngredients,
             limit = limit,
             includePantryIngredients = lastIncludePantryIngredients
         )
@@ -79,15 +83,17 @@ class RecipeRepository @Inject constructor(
 
     suspend fun refreshRecipes(
         userIngredients: List<String>,
+        requiredIngredients: List<String> = emptyList(),
         limit: Int = 20,
         includePantryIngredients: Boolean = true
     ) = withContext(Dispatchers.IO) {
         val pantry = if (includePantryIngredients) dao.getPantryIngredientsOnce().map { it.name } else emptyList()
         val available = normalizeInput(userIngredients + pantry)
+        val required = normalizeInput(requiredIngredients)
         _availableIngredients.value = available
 
         val response = api.recipesByAvailableIngredients(
-            AvailableIngredientsRequest(available = available, required = emptyList(), limit = limit)
+            AvailableIngredientsRequest(available = available, required = required, limit = limit)
         )
         if (!response.isSuccessful) {
             throw IllegalStateException("API zwróciło błąd ${response.code()}: ${response.errorBody()?.string().orEmpty()}")
