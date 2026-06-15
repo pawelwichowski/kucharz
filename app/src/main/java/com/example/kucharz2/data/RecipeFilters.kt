@@ -2,11 +2,15 @@ package com.example.kucharz2.data
 
 enum class MissingIngredientMode(val label: String) {
     EXACT_0("0"),
-    AT_LEAST_0(">=0"),
+    MAX_1("max 1"),
     EXACT_1("1"),
-    AT_LEAST_1(">=1"),
-    EXACT_2("2"),
-    AT_LEAST_2(">=2")
+    MAX_2("max 2"),
+    EXACT_2("2")
+}
+
+enum class UsedIngredientsSortMode(val label: String) {
+    MOST_USED("Najwięcej użytych"),
+    LEAST_USED("Najmniej użytych")
 }
 
 data class RecipeFilters(
@@ -15,11 +19,12 @@ data class RecipeFilters(
     val mealTypeTag: String? = null,
     val cuisineTag: String? = null,
     val dietTag: String? = null,
-    val missingIngredientMode: MissingIngredientMode? = null,
+    val missingIngredientMode: MissingIngredientMode = MissingIngredientMode.MAX_2,
     val videoOnly: Boolean = false,
     val maxIngredients: Int? = null,
     val minRatingTag: String? = null,
-    val readyTimeTag: String? = null
+    val readyTimeTag: String? = null,
+    val usedIngredientsSortMode: UsedIngredientsSortMode? = null
 ) {
     val hasActiveFilters: Boolean
         get() = mainIngredient != null ||
@@ -27,11 +32,12 @@ data class RecipeFilters(
             mealTypeTag != null ||
             cuisineTag != null ||
             dietTag != null ||
-            missingIngredientMode != null ||
+            missingIngredientMode != MissingIngredientMode.MAX_2 ||
             videoOnly ||
             maxIngredients != null ||
             minRatingTag != null ||
-            readyTimeTag != null
+            readyTimeTag != null ||
+            usedIngredientsSortMode != null
 
     fun categoryNames(): String = listOfNotNull(
         mealTypeTag,
@@ -112,7 +118,9 @@ object RecipeFilterOptions {
         FilterOption("≤ 10", "10")
     )
 
-    val missingIngredientModes = MissingIngredientMode.values().map { mode ->
+    val missingIngredientModes = MissingIngredientMode.values().toList()
+
+    val usedIngredientsSortModes = UsedIngredientsSortMode.values().map { mode ->
         FilterOption(mode.label, mode.name)
     }
 }
