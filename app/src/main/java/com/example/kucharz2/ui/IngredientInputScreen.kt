@@ -1,0 +1,138 @@
+package com.example.kucharz2.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.kucharz2.data.StandardIngredientCatalog
+
+@Composable
+internal fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltViewModel()) {
+    val state by viewModel.uiState.collectAsState()
+    val searchLoading by viewModel.searchLoading.collectAsState()
+    val searchError by viewModel.searchError.collectAsState()
+    val excluded = state.ingredients.map { it.name }.toSet()
+    val suggestions = StandardIngredientCatalog.suggestions(state.query, excluded)
+    val hasSelectedItems = state.ingredients.isNotEmpty() || state.requiredPantryIngredients.isNotEmpty()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            HeaderCard(
+                title = "Wybierz składniki",
+                subtitle = "Wpisz nazwę składnika i wybierz jedną z ustandaryzowanych podpowiedzi. Checkbox przy składniku oznacza, że zostanie wysłany także jako wymagany."
+            )
+        }
+        item {
+            OutlinedTextField(
+                value = state.query,
+                onValueChange = viewModel::onQueryChange,
+                label = { Text("Szukaj składnika z listy") },
+                placeholder = { Text("np. jajka, maka, pomidor") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+        }
+        item {
+            SuggestionChips(
+                title = "Pasujące składniki",
+                query = state.query,
+                suggestions = suggestions,
+                onSelect = viewModel::selectIngredient
+            )
+        }
+        item {
+            RequiredIngredientChips(
+                title = "Wybrane składniki",
+                ingredients = state.ingredients,
+                emptyText = "Nie wybrano jeszcze składników z lodówki.",
+                onRequiredChange = viewModel::toggleIngredientRequired,
+                onRemove = viewModel::removeIngredient
+            )
+        }
+        item {
+            OutlinedButton(
+                onClick = viewModel::clearSelectedIngredients,
+                enabled = hasSelectedItems,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Wyczyść listę")
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Uwzględnij stałe składniki", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (state.includePantryIngredients) {
+                                "Stałe składniki zostaną dodane do dostępnych. Zaznacz checkbox przy stałym składniku, żeby dodać go też do wymaganych."
+                            } else {
+                                "Wyszukiwanie użyje tylko składników wybranych powyżej."
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Switch(checked = state.includePantryIngredients, onCheckedChange = viewModel::setIncludePantryIngredients)
+                }
+            }
+        }
+        item {
+            PantryRequiredIngredientChips(
+                title = if (state.includePantryIngredients) "Stałe składniki" else "Stałe składniki pomijane",
+                items = state.pantryIngredients,
+                requiredItems = state.requiredPantryIngredients,
+                enabled = state.includePantryIngredients,
+                emptyText = "Dodaj stałe składniki w ustawieniach.",
+                onRequiredChange = viewModel::togglePantryRequired
+            )
+        }
+        item {
+            Button(
+                onClick = viewModel::search,
+                enabled = !searchLoading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (searchLoading) {
+                    CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Ładuję przepisy…")
+                } else {
+                    Text("Szukaj przepisów")
+                }
+            }
+        }
+        state.error?.let { item { ErrorCard(it) } }
+        searchError?.let { item { ErrorCard(it) } }
+    }
+}
