@@ -32,7 +32,7 @@ fun RecipeCard(
     recipe: Recipe,
     isSaved: Boolean,
     onOpen: () -> Unit,
-    onSave: () -> Unit,
+    onToggleSave: () -> Unit,
     onAddMissing: (() -> Unit)?
 ) {
     ElevatedCard(
@@ -77,7 +77,7 @@ fun RecipeCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(onClick = onOpen) { Text("Szczegóły") }
-                OutlinedButton(onClick = onSave, enabled = !isSaved) { Text(if (isSaved) "Zapisany" else "Zapisz") }
+                OutlinedButton(onClick = onToggleSave) { Text(if (isSaved) "Usuń zapis" else "Zapisz") }
                 if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
                     OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
                 }
