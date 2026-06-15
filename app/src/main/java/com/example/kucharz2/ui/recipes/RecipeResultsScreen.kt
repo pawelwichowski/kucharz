@@ -41,6 +41,7 @@ fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
     val message by viewModel.message.collectAsState()
     val searchLoading by viewModel.searchLoading.collectAsState()
     val searchError by viewModel.searchError.collectAsState()
+    val filters by viewModel.filters.collectAsState()
     var showMissingRecipes by rememberSaveable { mutableStateOf(false) }
 
     val visibleRecipes = if (showMissingRecipes) nearRecipes else exactRecipes
@@ -78,6 +79,14 @@ fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
                         )
                     }
                 }
+            }
+            item {
+                RecipeFiltersCard(
+                    filters = filters,
+                    onFiltersChange = viewModel::setFilters,
+                    onApply = viewModel::applyFilters,
+                    onClear = viewModel::clearFilters
+                )
             }
             if (searchLoading) {
                 item {
