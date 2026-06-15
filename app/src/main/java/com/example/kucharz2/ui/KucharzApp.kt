@@ -116,13 +116,14 @@ fun KucharzApp(
         bottomBar = {
             NavigationBar {
                 bottomScreens.forEach { screen ->
+                    val isSettingsScreen = screen == Screen.Settings
                     NavigationBarItem(
-                        selected = currentRoute == screen.route,
+                        selected = currentRoute == screen.route || (isSettingsScreen && currentRoute == Screen.Pantry.route),
                         onClick = {
                             navController.navigate(screen.route) {
                                 launchSingleTop = true
-                                restoreState = true
-                                popUpTo(Screen.Ingredients.route) { saveState = true }
+                                restoreState = !isSettingsScreen
+                                popUpTo(Screen.Ingredients.route) { saveState = !isSettingsScreen }
                             }
                         },
                         icon = { Text(screen.icon) },
@@ -146,7 +147,11 @@ fun KucharzApp(
                 SettingsScreen(
                     isDarkTheme = isDarkTheme,
                     onDarkThemeChange = onDarkThemeChange,
-                    onOpenPantry = { navController.navigate(Screen.Pantry.route) }
+                    onOpenPantry = {
+                        navController.navigate(Screen.Pantry.route) {
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
         }
@@ -293,6 +298,7 @@ class RecipeResultsViewModel @Inject constructor(
     val recipes = repository.exactRecipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val nearRecipes = repository.nearRecipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val availableIngredients = repository.availableIngredients.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val savedRecipes = repository.observeHistory().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val searchLoading = repository.searchLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val searchError = repository.searchError.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -336,6 +342,7 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
     val exactRecipes by viewModel.recipes.collectAsState()
     val nearRecipes by viewModel.nearRecipes.collectAsState()
     val available by viewModel.availableIngredients.collectAsState()
+    val savedRecipes by viewModel.savedRecipes.collectAsState()
     val selected by viewModel.selectedRecipe.collectAsState()
     val message by viewModel.message.collectAsState()
     val searchLoading by viewModel.searchLoading.collectAsState()
@@ -343,6 +350,7 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
     var showMissingRecipes by rememberSaveable { mutableStateOf(false) }
 
     val visibleRecipes = if (showMissingRecipes) nearRecipes else exactRecipes
+    val savedRecipeIds = savedRecipes.map { it.recipeId }.toSet()
 
     Column(Modifier.fillMaxSize()) {
         message?.let {
@@ -427,6 +435,7 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                 items(visibleRecipes, key = { it.id }) { recipe ->
                     RecipeCard(
                         recipe = recipe,
+                        isSaved = recipe.id in savedRecipeIds,
                         onOpen = { viewModel.openRecipe(recipe) },
                         onSave = { viewModel.saveRecipe(recipe) },
                         onAddMissing = if (recipe.missingIngredients.isNotEmpty()) {
@@ -526,6 +535,7 @@ class SavedRecipesViewModel @Inject constructor(
         _selectedRecipe.value = null
     }
 
+    fun delete(item: RecipeHistoryEntity) = viewModelScope.launch { repository.deleteHistory(item.recipeId) }
     fun clear() = viewModelScope.launch { repository.clearHistory() }
 }
 
@@ -549,7 +559,11 @@ private fun SavedRecipesScreen(viewModel: SavedRecipesViewModel = hiltViewModel(
             item { EmptyState("Nie masz jeszcze zapisanych przepisów.") }
         } else {
             items(savedRecipes, key = { it.recipeId }) { item ->
-                SavedRecipeCard(item = item, onOpen = { viewModel.open(item) })
+                SavedRecipeCard(
+                    item = item,
+                    onOpen = { viewModel.open(item) },
+                    onDelete = { viewModel.delete(item) }
+                )
             }
         }
     }
@@ -558,12 +572,15 @@ private fun SavedRecipesScreen(viewModel: SavedRecipesViewModel = hiltViewModel(
 }
 
 @Composable
-private fun SavedRecipeCard(item: RecipeHistoryEntity, onOpen: () -> Unit) {
+private fun SavedRecipeCard(item: RecipeHistoryEntity, onOpen: () -> Unit, onDelete: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("Składników: ${item.ingredients.size}", style = MaterialTheme.typography.bodyMedium)
-            Button(onClick = onOpen) { Text("Otwórz") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onOpen) { Text("Otwórz") }
+                OutlinedButton(onClick = onDelete) { Text("Usuń") }
+            }
         }
     }
 }
@@ -683,6 +700,7 @@ private fun SettingsScreen(
 @Composable
 private fun RecipeCard(
     recipe: Recipe,
+    isSaved: Boolean,
     onOpen: () -> Unit,
     onSave: () -> Unit,
     onAddMissing: (() -> Unit)?
@@ -708,7 +726,9 @@ private fun RecipeCard(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpen) { Text("Szczegóły") }
-                OutlinedButton(onClick = onSave) { Text("Zapisz") }
+                OutlinedButton(onClick = onSave, enabled = !isSaved) {
+                    Text(if (isSaved) "Zapisany" else "Zapisz")
+                }
                 if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
                     OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
                 }
