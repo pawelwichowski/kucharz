@@ -291,6 +291,10 @@ class RecipeResultsViewModel @Inject constructor(
     val selectedRecipe: StateFlow<Recipe?> = _selectedRecipe
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
+    private val _expandedLoading = MutableStateFlow(false)
+    val expandedLoading: StateFlow<Boolean> = _expandedLoading
+    private val _expandedError = MutableStateFlow<String?>(null)
+    val expandedError: StateFlow<String?> = _expandedError
 
     fun openRecipe(recipe: Recipe) {
         _selectedRecipe.value = recipe
@@ -307,6 +311,22 @@ class RecipeResultsViewModel @Inject constructor(
     }
 
     fun clearMessage() { _message.value = null }
+    fun clearExpandedError() { _expandedError.value = null }
+
+    fun loadRecipesWithMissingIngredients() {
+        val available = repository.availableIngredients.value
+        if (available.isEmpty() || _expandedLoading.value) return
+
+        viewModelScope.launch {
+            _expandedLoading.value = true
+            _expandedError.value = null
+            runCatching { repository.refreshRecipes(available, limit = 100) }
+                .onFailure { throwable ->
+                    _expandedError.value = throwable.message ?: "Nie udało się pobrać przepisów z brakującymi składnikami."
+                }
+            _expandedLoading.value = false
+        }
+    }
 }
 
 @Composable
@@ -316,6 +336,8 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
     val available by viewModel.availableIngredients.collectAsState()
     val selected by viewModel.selectedRecipe.collectAsState()
     val message by viewModel.message.collectAsState()
+    val expandedLoading by viewModel.expandedLoading.collectAsState()
+    val expandedError by viewModel.expandedError.collectAsState()
     var showMissingRecipes by rememberSaveable { mutableStateOf(false) }
 
     val visibleRecipes = if (showMissingRecipes) {
@@ -327,6 +349,9 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
     Column(Modifier.fillMaxSize()) {
         message?.let {
             SuccessCard(message = it, onDismiss = viewModel::clearMessage)
+        }
+        expandedError?.let {
+            ErrorCard(message = it)
         }
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -353,9 +378,35 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                         )
                         Switch(
                             checked = showMissingRecipes,
-                            onCheckedChange = { showMissingRecipes = it }
+                            enabled = !expandedLoading,
+                            onCheckedChange = { enabled ->
+                                showMissingRecipes = enabled
+                                if (enabled) viewModel.loadRecipesWithMissingIngredients()
+                            }
                         )
                     }
+                }
+            }
+            if (showMissingRecipes && expandedLoading) {
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                            Text("Pobieram też przepisy z brakującymi składnikami…")
+                        }
+                    }
+                }
+            }
+            if (showMissingRecipes && !expandedLoading && nearRecipes.isEmpty() && exactRecipes.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Nie znaleziono przepisów z 1–2 brakującymi składnikami w pobranej puli wyników.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             }
             if (visibleRecipes.isEmpty()) {
