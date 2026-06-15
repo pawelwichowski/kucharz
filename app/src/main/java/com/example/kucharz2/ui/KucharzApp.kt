@@ -116,14 +116,13 @@ fun KucharzApp(
         bottomBar = {
             NavigationBar {
                 bottomScreens.forEach { screen ->
-                    val isSettingsScreen = screen == Screen.Settings
                     NavigationBarItem(
-                        selected = currentRoute == screen.route || (isSettingsScreen && currentRoute == Screen.Pantry.route),
+                        selected = currentRoute == screen.route || (screen == Screen.Settings && currentRoute == Screen.Pantry.route),
                         onClick = {
                             navController.navigate(screen.route) {
                                 launchSingleTop = true
-                                restoreState = !isSettingsScreen
-                                popUpTo(Screen.Ingredients.route) { saveState = !isSettingsScreen }
+                                restoreState = false
+                                popUpTo(Screen.Ingredients.route) { saveState = false }
                             }
                         },
                         icon = { Text(screen.icon) },
