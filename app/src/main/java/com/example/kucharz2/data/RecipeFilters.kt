@@ -1,12 +1,21 @@
 package com.example.kucharz2.data
 
+enum class MissingIngredientMode(val label: String) {
+    EXACT_0("0"),
+    AT_LEAST_0(">=0"),
+    EXACT_1("1"),
+    AT_LEAST_1(">=1"),
+    EXACT_2("2"),
+    AT_LEAST_2(">=2")
+}
+
 data class RecipeFilters(
     val mainIngredient: String? = null,
     val excludedIngredients: List<String> = emptyList(),
     val mealTypeTag: String? = null,
     val cuisineTag: String? = null,
     val dietTag: String? = null,
-    val oneMissingIngredientOnly: Boolean = false,
+    val missingIngredientMode: MissingIngredientMode? = null,
     val videoOnly: Boolean = false,
     val maxIngredients: Int? = null,
     val minRatingTag: String? = null,
@@ -18,7 +27,7 @@ data class RecipeFilters(
             mealTypeTag != null ||
             cuisineTag != null ||
             dietTag != null ||
-            oneMissingIngredientOnly ||
+            missingIngredientMode != null ||
             videoOnly ||
             maxIngredients != null ||
             minRatingTag != null ||
@@ -102,4 +111,8 @@ object RecipeFilterOptions {
         FilterOption("≤ 5", "5"),
         FilterOption("≤ 10", "10")
     )
+
+    val missingIngredientModes = MissingIngredientMode.values().map { mode ->
+        FilterOption(mode.label, mode.name)
+    }
 }
