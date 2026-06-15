@@ -20,8 +20,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -35,13 +39,26 @@ import com.example.kucharz2.ui.components.SelectedIngredientChips
 import com.example.kucharz2.ui.components.SuggestionChips
 
 @Composable
-fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltViewModel()) {
+fun IngredientInputScreen(
+    onSearchCompleted: () -> Unit,
+    viewModel: IngredientInputViewModel = hiltViewModel()
+) {
     val state by viewModel.uiState.collectAsState()
     val searchLoading by viewModel.searchLoading.collectAsState()
     val searchError by viewModel.searchError.collectAsState()
+    val successfulSearchVersion by viewModel.successfulSearchVersion.collectAsState()
+    var searchRequestVersion by rememberSaveable { mutableStateOf<Int?>(null) }
     val excluded = state.ingredients.map { it.name }.toSet()
     val suggestions = StandardIngredientCatalog.suggestions(state.query, excluded)
     val hasSelectedItems = state.ingredients.isNotEmpty()
+
+    LaunchedEffect(successfulSearchVersion, searchRequestVersion) {
+        val requestedVersion = searchRequestVersion ?: return@LaunchedEffect
+        if (successfulSearchVersion > requestedVersion) {
+            searchRequestVersion = null
+            onSearchCompleted()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -119,7 +136,10 @@ fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltViewModel())
         }
         item {
             Button(
-                onClick = viewModel::search,
+                onClick = {
+                    searchRequestVersion = successfulSearchVersion
+                    viewModel.search()
+                },
                 enabled = !searchLoading,
                 modifier = Modifier.fillMaxWidth()
             ) {
