@@ -14,7 +14,8 @@ data class Recipe(
     val sourceUrl: String? = null,
     val tags: List<String> = emptyList(),
     val missingIngredients: List<String> = emptyList(),
-    val missingCount: Int = missingIngredients.size
+    val missingCount: Int = missingIngredients.size,
+    val displayIngredientLines: List<String> = emptyList()
 )
 
 data class AvailableIngredientsRequest(
