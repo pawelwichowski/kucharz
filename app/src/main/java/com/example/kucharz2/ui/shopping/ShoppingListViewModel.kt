@@ -39,4 +39,8 @@ class ShoppingListViewModel @Inject constructor(
     fun deleteChecked() = viewModelScope.launch {
         repository.deleteCheckedShoppingItems()
     }
+
+    fun deleteAll() = viewModelScope.launch {
+        repository.deleteAllShoppingItems()
+    }
 }
