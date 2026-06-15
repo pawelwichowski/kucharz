@@ -50,18 +50,18 @@ fun SettingsScreen(
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Stałe składniki", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Spiżarnia", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Zarządzaj składnikami, które zwykle masz w domu.")
-                    Button(onClick = onOpenPantry) { Text("Otwórz stałe składniki") }
+                    Button(onClick = onOpenPantry) { Text("Otwórz spiżarnię") }
                 }
             }
         }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Stałe wykluczenia", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Niechciane", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Zarządzaj składnikami, których aplikacja ma zawsze unikać w wynikach.")
-                    Button(onClick = onOpenPermanentExclusions) { Text("Otwórz stałe wykluczenia") }
+                    Button(onClick = onOpenPermanentExclusions) { Text("Otwórz niechciane") }
                 }
             }
         }
