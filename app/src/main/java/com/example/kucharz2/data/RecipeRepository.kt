@@ -115,6 +115,10 @@ class RecipeRepository @Inject constructor(
         dao.upsertHistory(recipe.toHistoryEntity())
     }
 
+    suspend fun deleteHistory(recipeId: String) = withContext(Dispatchers.IO) {
+        dao.deleteHistory(recipeId)
+    }
+
     suspend fun clearHistory() = withContext(Dispatchers.IO) {
         dao.clearHistory()
     }
