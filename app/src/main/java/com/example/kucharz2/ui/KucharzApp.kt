@@ -760,12 +760,14 @@ private fun RecipeCard(
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(recipe.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        text = if (recipe.ingredients.isEmpty()) "API nie zwróciło składników." else recipe.ingredients.take(4).joinToString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (recipe.ingredients.isNotEmpty()) {
+                        Text(
+                            text = recipe.ingredients.take(4).joinToString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     if (recipe.missingCount > 0) {
                         Text("Brakuje: ${recipe.missingIngredients.joinToString()}", color = MaterialTheme.colorScheme.error)
                     }
@@ -806,12 +808,12 @@ private fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
                     SectionTitle("Brakujące składniki")
                     recipe.missingIngredients.forEach { Text("• $it", color = MaterialTheme.colorScheme.error) }
                 }
-                SectionTitle("Składniki")
-                if (recipe.ingredients.isEmpty()) Text("API nie zwróciło składników dla tego przepisu.")
-                recipe.ingredients.forEach { Text("• $it") }
-                SectionTitle("Przygotowanie")
-                if (recipe.instructions.isEmpty()) Text("Ładuję instrukcje albo API nie zwróciło ich dla tego przepisu.")
-                recipe.instructions.forEachIndexed { index, step -> Text("${index + 1}. $step") }
+                if (recipe.ingredients.isNotEmpty()) {
+                    SectionTitle("Składniki z wyniku")
+                    recipe.ingredients.forEach { Text("• $it") }
+                }
+                SectionTitle("Pełny przepis")
+                Text("Supercook zwraca link do strony z przepisem, a nie pełną instrukcję przygotowania w aplikacji.")
                 recipe.sourceUrl?.let { Text("Źródło: $it", style = MaterialTheme.typography.bodySmall) }
             }
         },
