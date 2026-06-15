@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+private const val RECIPE_PAGE_LIMIT = 61
+
 @HiltViewModel
 class RecipeResultsViewModel @Inject constructor(
     private val repository: RecipeRepository
@@ -22,6 +24,8 @@ class RecipeResultsViewModel @Inject constructor(
     val availableIngredients = repository.availableIngredients.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val savedRecipes = repository.observeHistory().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val searchLoading = repository.searchLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val loadMoreLoading = repository.loadMoreLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val canLoadMore = repository.canLoadMore.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val searchError = repository.searchError.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _filters = MutableStateFlow(RecipeFilters())
@@ -67,17 +71,17 @@ class RecipeResultsViewModel @Inject constructor(
     }
 
     fun applyFilters() {
-        repository.refreshCurrentRecipesInBackground(limit = 100, filters = _filters.value)
+        repository.refreshCurrentRecipesInBackground(limit = RECIPE_PAGE_LIMIT, filters = _filters.value)
     }
 
     fun clearFilters() {
         _filters.value = RecipeFilters()
-        repository.refreshCurrentRecipesInBackground(limit = 100, filters = RecipeFilters())
+        repository.refreshCurrentRecipesInBackground(limit = RECIPE_PAGE_LIMIT, filters = RecipeFilters())
+    }
+
+    fun loadMoreRecipes() {
+        repository.loadMoreRecipesInBackground()
     }
 
     fun clearMessage() { _message.value = null }
-
-    fun loadRecipesWithMissingIngredients() {
-        repository.refreshCurrentRecipesInBackground(limit = 100, filters = _filters.value)
-    }
 }
