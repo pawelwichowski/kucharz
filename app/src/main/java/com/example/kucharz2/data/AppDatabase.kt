@@ -56,6 +56,9 @@ interface KucharzDao {
     @Query("SELECT * FROM recipe_history ORDER BY viewedAt DESC")
     fun observeHistory(): Flow<List<RecipeHistoryEntity>>
 
+    @Query("DELETE FROM recipe_history WHERE recipeId = :recipeId")
+    suspend fun deleteHistory(recipeId: String)
+
     @Query("DELETE FROM recipe_history")
     suspend fun clearHistory()
 }
