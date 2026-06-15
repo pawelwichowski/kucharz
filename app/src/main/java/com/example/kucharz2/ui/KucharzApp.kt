@@ -782,6 +782,7 @@ private fun SettingsScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RecipeCard(
     recipe: Recipe,
@@ -794,49 +795,58 @@ private fun RecipeCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(recipe.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(
-                    text = if (recipe.ingredients.isEmpty()) "Brak listy składników w odpowiedzi API." else recipe.ingredients.take(4).joinToString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (recipe.missingCount > 0) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(recipe.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        text = "Brakuje: ${recipe.missingIngredients.joinToString()}",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium
+                        text = if (recipe.ingredients.isEmpty()) "Brak listy składników w odpowiedzi API." else recipe.ingredients.take(4).joinToString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (recipe.missingCount > 0) {
+                        Text(
+                            text = "Brakuje: ${recipe.missingIngredients.joinToString()}",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+                recipe.imageUrl?.let { imageUrl ->
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Zdjęcie przepisu ${recipe.title}",
+                        modifier = Modifier
+                            .width(104.dp)
+                            .height(104.dp)
+                            .clip(MaterialTheme.shapes.medium),
+                        contentScale = ContentScale.Crop
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onOpen) { Text("Szczegóły") }
-                    OutlinedButton(onClick = onSave, enabled = !isSaved) {
-                        Text(if (isSaved) "Zapisany" else "Zapisz")
-                    }
-                    if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
-                        OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
-                    }
-                }
             }
-            recipe.imageUrl?.let { imageUrl ->
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = "Zdjęcie przepisu ${recipe.title}",
-                    modifier = Modifier
-                        .width(104.dp)
-                        .height(104.dp)
-                        .clip(MaterialTheme.shapes.medium),
-                    contentScale = ContentScale.Crop
-                )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = onOpen) { Text("Szczegóły") }
+                OutlinedButton(onClick = onSave, enabled = !isSaved) {
+                    Text(if (isSaved) "Zapisany" else "Zapisz")
+                }
+                if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
+                    OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
+                }
             }
         }
     }
