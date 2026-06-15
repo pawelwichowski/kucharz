@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.kucharz2.data.StandardIngredientCatalog
 import com.example.kucharz2.ui.components.ErrorCard
-import com.example.kucharz2.ui.components.HeaderCard
 import com.example.kucharz2.ui.components.PlainIngredientChips
 import com.example.kucharz2.ui.components.SelectedIngredientChips
 import com.example.kucharz2.ui.components.SuggestionChips
@@ -62,41 +61,71 @@ fun IngredientInputScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item { Spacer(Modifier.height(12.dp)) }
+
         item {
-            HeaderCard(
-                title = "Wybierz składniki",
-                subtitle = "Wpisz nazwę składnika i wybierz jedną z ustandaryzowanych podpowiedzi. Główny składnik ustawisz później w filtrach wyników."
-            )
+            Card(Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Co masz w lodówce?",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = state.query,
+                            onValueChange = viewModel::onQueryChange,
+                            label = { Text("Składnik") },
+                            placeholder = { Text("np. jajka") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        Button(
+                            onClick = {
+                                searchRequestVersion = successfulSearchVersion
+                                viewModel.search()
+                            },
+                            enabled = !searchLoading
+                        ) {
+                            if (searchLoading) {
+                                CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("Szukaj")
+                            }
+                        }
+                    }
+                }
+            }
         }
-        item {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = viewModel::onQueryChange,
-                label = { Text("Szukaj składnika z listy") },
-                placeholder = { Text("np. jajka, maka, pomidor") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-        }
+
         item {
             SuggestionChips(
-                title = "Pasujące składniki",
+                title = "Składniki z listy",
                 query = state.query,
                 suggestions = suggestions,
                 onSelect = viewModel::selectIngredient
             )
         }
+
         item {
             SelectedIngredientChips(
                 title = "Wybrane składniki",
                 ingredients = state.ingredients,
-                emptyText = "Nie wybrano jeszcze składników z lodówki.",
+                emptyText = "Nie wybrano jeszcze składników.",
                 onRemove = viewModel::removeIngredient
             )
         }
+
         item {
             OutlinedButton(
                 onClick = viewModel::clearSelectedIngredients,
@@ -104,6 +133,7 @@ fun IngredientInputScreen(
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Wyczyść listę") }
         }
+
         item {
             Card(Modifier.fillMaxWidth()) {
                 Row(
@@ -112,12 +142,12 @@ fun IngredientInputScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Uwzględnij stałe składniki", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("Stałe składniki", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(
                             text = if (state.includePantryIngredients) {
-                                "Stałe składniki zostaną dodane do dostępnych składników."
+                                "Będą automatycznie dodane do wyszukiwania."
                             } else {
-                                "Wyszukiwanie użyje tylko składników wybranych powyżej."
+                                "Są tymczasowo pomijane."
                             },
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -126,32 +156,16 @@ fun IngredientInputScreen(
                 }
             }
         }
+
         item {
             PlainIngredientChips(
-                title = if (state.includePantryIngredients) "Stałe składniki" else "Stałe składniki pomijane",
+                title = if (state.includePantryIngredients) "Uwzględniane stałe składniki" else "Stałe składniki pomijane",
                 items = state.pantryIngredients,
                 enabled = state.includePantryIngredients,
                 emptyText = "Dodaj stałe składniki w ustawieniach."
             )
         }
-        item {
-            Button(
-                onClick = {
-                    searchRequestVersion = successfulSearchVersion
-                    viewModel.search()
-                },
-                enabled = !searchLoading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (searchLoading) {
-                    CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Ładuję przepisy…")
-                } else {
-                    Text("Szukaj przepisów")
-                }
-            }
-        }
+
         state.error?.let { item { ErrorCard(it) } }
         searchError?.let { item { ErrorCard(it) } }
     }
