@@ -50,7 +50,7 @@ class RecipeRepository @Inject constructor(
     fun refreshRecipesInBackground(
         userIngredients: List<String>,
         requiredIngredients: List<String> = emptyList(),
-        limit: Int = 20,
+        limit: Int = 50,
         includePantryIngredients: Boolean = true
     ) {
         lastUserIngredients = userIngredients
@@ -84,7 +84,7 @@ class RecipeRepository @Inject constructor(
     suspend fun refreshRecipes(
         userIngredients: List<String>,
         requiredIngredients: List<String> = emptyList(),
-        limit: Int = 20,
+        limit: Int = 50,
         includePantryIngredients: Boolean = true
     ) = withContext(Dispatchers.IO) {
         val pantry = if (includePantryIngredients) dao.getPantryIngredientsOnce().map { it.name } else emptyList()
@@ -92,15 +92,20 @@ class RecipeRepository @Inject constructor(
         val required = normalizeInput(requiredIngredients)
         _availableIngredients.value = available
 
-        val response = api.recipesByAvailableIngredients(
-            AvailableIngredientsRequest(available = available, required = required, limit = limit)
+        val response = api.getSupercookResults(
+            kitchen = available.joinToString(","),
+            focus = required.joinToString(","),
+            exclude = "",
+            start = 0,
+            limit = limit,
+            lang = "pl"
         )
+
         if (!response.isSuccessful) {
-            throw IllegalStateException("API zwróciło błąd ${response.code()}: ${response.errorBody()?.string().orEmpty()}")
+            throw IllegalStateException("Supercook zwrócił błąd ${response.code()}: ${response.errorBody()?.string().orEmpty()}")
         }
 
-        val parsed = RecipeResponseParser.parse(response.body())
-            .map { it.withCalculatedMissingIngredients(available) }
+        val parsed = SupercookParser.parse(response.body())
             .sortedWith(compareBy<Recipe> { it.missingCount }.thenBy { it.title.lowercase() })
 
         _exactRecipes.value = parsed.filter { it.missingCount == 0 }
@@ -108,11 +113,7 @@ class RecipeRepository @Inject constructor(
     }
 
     suspend fun getRecipeDetails(recipe: Recipe): Recipe = withContext(Dispatchers.IO) {
-        val response = api.getRecipe(recipe.id)
-        if (!response.isSuccessful) return@withContext recipe
-
-        val detailed = RecipeResponseParser.parse(response.body()).firstOrNull() ?: return@withContext recipe
-        recipe.mergeDetails(detailed)
+        recipe
     }
 
     suspend fun addMissingIngredientsToShoppingList(recipe: Recipe) = withContext(Dispatchers.IO) {
@@ -159,27 +160,58 @@ class RecipeRepository @Inject constructor(
 
     private fun normalizeInput(items: List<String>): List<String> =
         items.map { it.cleanupName() }.filter { it.isNotBlank() }.distinctBy { it.normalizedKey() }
+}
 
-    private fun Recipe.withCalculatedMissingIngredients(available: List<String>): Recipe {
-        val missingFromApi = missingIngredients.map { it.cleanupName() }.filter { it.isNotBlank() }
-        if (missingFromApi.isNotEmpty()) return copy(missingIngredients = missingFromApi, missingCount = missingFromApi.size)
+object SupercookParser {
+    fun parse(body: ResponseBody?): List<Recipe> {
+        val text = body?.string().orEmpty().trim()
+        if (text.isBlank()) return emptyList()
 
-        val missing = ingredients
-            .map { it.cleanupName() }
-            .filter { ingredient -> available.none { availableItem -> ingredient.matchesIngredient(availableItem) } }
-            .distinctBy { it.normalizedKey() }
+        val root = JSONObject(text)
+        val results = root.optJSONArray("results") ?: return emptyList()
 
-        return copy(missingIngredients = missing, missingCount = missing.size)
+        return buildList {
+            for (i in 0 until results.length()) {
+                val obj = results.optJSONObject(i) ?: continue
+                val title = obj.optString("title", "Przepis").cleanupName()
+                if (title.isBlank()) continue
+
+                val id = obj.optString("id", title.normalizedKey().ifBlank { "supercook-$i" }).cleanupName()
+                val uses = obj.optString("uses", "")
+                    .split(",")
+                    .map { it.cleanupName() }
+                    .filter { it.isNotBlank() }
+                val needs = obj.optJSONArray("needs").toStringList()
+                val ingredients = (uses + needs).distinctBy { it.normalizedKey() }
+                val imageUrl = obj.optString("img").takeIf { it.isNotBlank() && it != "null" }
+                val domain = obj.optString("domain").takeIf { it.isNotBlank() && it != "null" }
+
+                add(
+                    Recipe(
+                        id = id,
+                        title = title,
+                        ingredients = ingredients,
+                        instructions = emptyList(),
+                        imageUrl = imageUrl,
+                        sourceUrl = "https://www.supercook.com/#/recipes/$id",
+                        tags = listOfNotNull(domain),
+                        missingIngredients = needs,
+                        missingCount = needs.size
+                    )
+                )
+            }
+        }
     }
 
-    private fun Recipe.mergeDetails(detailed: Recipe): Recipe = copy(
-        title = detailed.title.ifBlank { title },
-        ingredients = detailed.ingredients.ifEmpty { ingredients },
-        instructions = detailed.instructions.ifEmpty { instructions },
-        imageUrl = detailed.imageUrl ?: imageUrl,
-        sourceUrl = detailed.sourceUrl ?: sourceUrl,
-        tags = detailed.tags.ifEmpty { tags }
-    )
+    private fun JSONArray?.toStringList(): List<String> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (i in 0 until length()) {
+                val value = optString(i).cleanupName()
+                if (value.isNotBlank() && value != "null") add(value)
+            }
+        }
+    }
 }
 
 object RecipeResponseParser {
