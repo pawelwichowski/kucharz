@@ -39,7 +39,7 @@ fun PermanentExclusionsScreen(viewModel: PermanentExclusionsViewModel = hiltView
     ) {
         item {
             HeaderCard(
-                title = "Stałe wykluczenia",
+                title = "Niechciane",
                 subtitle = "Składniki z tej listy będą zawsze wysyłane do Supercook jako wykluczone."
             )
         }
@@ -47,7 +47,7 @@ fun PermanentExclusionsScreen(viewModel: PermanentExclusionsViewModel = hiltView
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::onQueryChange,
-                label = { Text("Szukaj składnika do stałego wykluczenia") },
+                label = { Text("Szukaj niechcianego składnika") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
@@ -61,7 +61,7 @@ fun PermanentExclusionsScreen(viewModel: PermanentExclusionsViewModel = hiltView
             )
         }
         if (items.isEmpty()) {
-            item { EmptyState("Nie dodano jeszcze stałych wykluczeń.") }
+            item { EmptyState("Nie dodano jeszcze niechcianych składników.") }
         } else {
             items(items, key = { it.id }) { item ->
                 Card(Modifier.fillMaxWidth()) {
