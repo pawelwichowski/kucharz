@@ -5,7 +5,8 @@ enum class MissingIngredientMode(val label: String) {
     MAX_1("max 1"),
     EXACT_1("1"),
     MAX_2("max 2"),
-    EXACT_2("2")
+    EXACT_2("2"),
+    AT_LEAST_2("2+ bez limitu")
 }
 
 enum class UsedIngredientsSortMode(val label: String) {
