@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.kucharz2.data.FilterOption
+import com.example.kucharz2.data.MissingIngredientMode
 import com.example.kucharz2.data.RecipeFilterOptions
 import com.example.kucharz2.data.RecipeFilters
 import com.example.kucharz2.data.StandardIngredientCatalog
@@ -34,17 +35,12 @@ import com.example.kucharz2.ui.components.SectionTitle
 @Composable
 fun RecipeFiltersCard(
     filters: RecipeFilters,
+    availableIngredients: List<String>,
     onFiltersChange: (RecipeFilters) -> Unit,
     onApply: () -> Unit,
     onClear: () -> Unit
 ) {
-    var mainQuery by rememberSaveable { mutableStateOf("") }
     var excludeQuery by rememberSaveable { mutableStateOf("") }
-    val mainSuggestions = StandardIngredientCatalog.suggestions(
-        query = mainQuery,
-        excluded = setOfNotNull(filters.mainIngredient),
-        limit = 8
-    )
     val excludeSuggestions = StandardIngredientCatalog.suggestions(
         query = excludeQuery,
         excluded = filters.excludedIngredients.toSet(),
@@ -66,32 +62,22 @@ fun RecipeFiltersCard(
             }
 
             SectionTitle("Główny składnik")
-            filters.mainIngredient?.let { ingredient ->
-                FilterChip(
-                    selected = true,
-                    onClick = { onFiltersChange(filters.copy(mainIngredient = null)) },
-                    label = { Text("$ingredient ×") }
-                )
-            } ?: run {
-                OutlinedTextField(
-                    value = mainQuery,
-                    onValueChange = { mainQuery = it },
-                    label = { Text("Szukaj głównego składnika") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                if (mainQuery.isNotBlank()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        mainSuggestions.forEach { suggestion ->
-                            FilterChip(
-                                selected = false,
-                                onClick = {
-                                    onFiltersChange(filters.copy(mainIngredient = suggestion))
-                                    mainQuery = ""
-                                },
-                                label = { Text(suggestion) }
-                            )
-                        }
+            if (availableIngredients.isEmpty()) {
+                Text("Najpierw wyszukaj przepisy po składnikach.")
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    availableIngredients.forEach { ingredient ->
+                        FilterChip(
+                            selected = filters.mainIngredient == ingredient,
+                            onClick = {
+                                onFiltersChange(
+                                    filters.copy(
+                                        mainIngredient = if (filters.mainIngredient == ingredient) null else ingredient
+                                    )
+                                )
+                            },
+                            label = { Text(ingredient) }
+                        )
                     }
                 }
             }
@@ -148,14 +134,14 @@ fun RecipeFiltersCard(
             SingleChoiceFilterChips("Maksymalna liczba składników", RecipeFilterOptions.maxIngredients, filters.maxIngredients?.toString()) { value ->
                 onFiltersChange(filters.copy(maxIngredients = value?.toIntOrNull()))
             }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Brakujący dokładnie 1 składnik", modifier = Modifier.weight(1f))
-                Switch(
-                    checked = filters.oneMissingIngredientOnly,
-                    onCheckedChange = { onFiltersChange(filters.copy(oneMissingIngredientOnly = it)) }
-                )
+            SingleChoiceFilterChips(
+                title = "Ile składników może brakować",
+                options = RecipeFilterOptions.missingIngredientModes,
+                selectedValue = filters.missingIngredientMode?.name
+            ) { value ->
+                onFiltersChange(filters.copy(missingIngredientMode = value?.let { MissingIngredientMode.valueOf(it) }))
             }
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Tylko wideo", modifier = Modifier.weight(1f))
                 Switch(
@@ -163,11 +149,6 @@ fun RecipeFiltersCard(
                     onCheckedChange = { onFiltersChange(filters.copy(videoOnly = it)) }
                 )
             }
-
-            Text(
-                text = "Filtry typu posiłku, kuchni, diety, wideo, czasu i oceny są wysyłane do Supercook w polu catname.",
-                style = MaterialTheme.typography.bodySmall
-            )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onApply, modifier = Modifier.weight(1f)) { Text("Zastosuj") }
@@ -188,15 +169,11 @@ private fun SingleChoiceFilterChips(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTitle(title)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = selectedValue == null,
-                onClick = { onSelected(null) },
-                label = { Text("Dowolne") }
-            )
             options.forEach { option ->
+                val selected = selectedValue == option.value
                 FilterChip(
-                    selected = selectedValue == option.value,
-                    onClick = { onSelected(option.value) },
+                    selected = selected,
+                    onClick = { onSelected(if (selected) null else option.value) },
                     label = { Text(option.label) }
                 )
             }
