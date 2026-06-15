@@ -149,6 +149,10 @@ class RecipeRepository @Inject constructor(
         dao.deleteCheckedShoppingItems()
     }
 
+    suspend fun deleteAllShoppingItems() = withContext(Dispatchers.IO) {
+        dao.deleteAllShoppingItems()
+    }
+
     suspend fun addPantryIngredient(name: String) = withContext(Dispatchers.IO) {
         val clean = name.cleanupName()
         if (clean.isNotBlank()) dao.insertPantryIngredient(PantryIngredientEntity(name = clean))
