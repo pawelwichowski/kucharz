@@ -28,6 +28,14 @@ interface RecipeApi {
         @Field("cv") cv: Int = 2
     ): Response<ResponseBody>
 
+    @POST("dyn/details")
+    @FormUrlEncoded
+    suspend fun getSupercookRecipeDetails(
+        @Field("rid") recipeId: String,
+        @Field("lang") lang: String = "pl",
+        @Field("cv") cv: Int = 2
+    ): Response<ResponseBody>
+
     @GET("recipes")
     suspend fun getRecipes(
         @Query("limit") limit: Int = 20,
