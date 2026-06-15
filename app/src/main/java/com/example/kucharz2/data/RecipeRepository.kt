@@ -114,12 +114,11 @@ class RecipeRepository @Inject constructor(
 
         val parsed = SupercookParser.parse(response.body())
             .filter { recipe -> filters.maxIngredients?.let { recipe.ingredients.size <= it } ?: true }
+            .filter { recipe -> recipe.matchesMissingIngredientMode(filters.missingIngredientMode) }
             .sortedWith(compareBy<Recipe> { it.missingCount }.thenBy { it.title.lowercase() })
 
         _exactRecipes.value = parsed.filter { it.missingCount == 0 }
-        _nearRecipes.value = parsed.filter { recipe ->
-            if (filters.oneMissingIngredientOnly) recipe.missingCount == 1 else recipe.missingCount in 1..2
-        }
+        _nearRecipes.value = parsed.filter { it.missingCount > 0 }
     }
 
     suspend fun getRecipeDetails(recipe: Recipe): Recipe = withContext(Dispatchers.IO) {
@@ -170,6 +169,16 @@ class RecipeRepository @Inject constructor(
 
     private fun normalizeInput(items: List<String>): List<String> =
         items.map { it.cleanupName() }.filter { it.isNotBlank() }.distinctBy { it.normalizedKey() }
+
+    private fun Recipe.matchesMissingIngredientMode(mode: MissingIngredientMode?): Boolean = when (mode) {
+        null -> true
+        MissingIngredientMode.EXACT_0 -> missingCount == 0
+        MissingIngredientMode.AT_LEAST_0 -> missingCount >= 0
+        MissingIngredientMode.EXACT_1 -> missingCount == 1
+        MissingIngredientMode.AT_LEAST_1 -> missingCount >= 1
+        MissingIngredientMode.EXACT_2 -> missingCount == 2
+        MissingIngredientMode.AT_LEAST_2 -> missingCount >= 2
+    }
 }
 
 object SupercookParser {
