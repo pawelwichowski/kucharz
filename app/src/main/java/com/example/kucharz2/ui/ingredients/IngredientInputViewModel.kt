@@ -20,6 +20,7 @@ private const val PREF_SELECTED_INGREDIENTS = "selected_ingredients"
 private const val PREF_INCLUDE_PANTRY = "include_pantry_ingredients"
 private const val SAVED_ITEM_SEPARATOR = "\u001E"
 private const val SAVED_FIELD_SEPARATOR = "\u001F"
+private const val RECIPE_PAGE_LIMIT = 61
 
 @HiltViewModel
 class IngredientInputViewModel @Inject constructor(
@@ -75,7 +76,7 @@ class IngredientInputViewModel @Inject constructor(
         repository.refreshRecipesInBackground(
             userIngredients = availableIngredients,
             requiredIngredients = emptyList(),
-            limit = 20,
+            limit = RECIPE_PAGE_LIMIT,
             includePantryIngredients = state.includePantryIngredients
         )
     }
