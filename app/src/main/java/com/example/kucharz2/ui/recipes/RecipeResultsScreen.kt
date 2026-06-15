@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -36,6 +37,8 @@ fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
     val selected by viewModel.selectedRecipe.collectAsState()
     val message by viewModel.message.collectAsState()
     val searchLoading by viewModel.searchLoading.collectAsState()
+    val loadMoreLoading by viewModel.loadMoreLoading.collectAsState()
+    val canLoadMore by viewModel.canLoadMore.collectAsState()
     val searchError by viewModel.searchError.collectAsState()
     val filters by viewModel.filters.collectAsState()
 
@@ -96,6 +99,23 @@ fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
                             null
                         }
                     )
+                }
+                if (visibleRecipes.isNotEmpty() && (canLoadMore || loadMoreLoading)) {
+                    item {
+                        OutlinedButton(
+                            onClick = viewModel::loadMoreRecipes,
+                            enabled = !searchLoading && !loadMoreLoading && canLoadMore,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (loadMoreLoading) {
+                                CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Ładuję więcej…")
+                            } else {
+                                Text("Załaduj więcej")
+                            }
+                        }
+                    }
                 }
             }
         }
