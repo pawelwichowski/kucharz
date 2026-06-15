@@ -84,11 +84,12 @@ fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
                 item { EmptyState("Nie znaleziono przepisów dla aktualnych składników i filtrów.") }
             } else {
                 items(visibleRecipes, key = { it.id }) { recipe ->
+                    val isSaved = recipe.id in savedRecipeIds
                     RecipeCard(
                         recipe = recipe,
-                        isSaved = recipe.id in savedRecipeIds,
+                        isSaved = isSaved,
                         onOpen = { viewModel.openRecipe(recipe) },
-                        onSave = { viewModel.saveRecipe(recipe) },
+                        onToggleSave = { viewModel.toggleSaved(recipe, isSaved) },
                         onAddMissing = if (recipe.missingIngredients.isNotEmpty()) {
                             { viewModel.addMissingToShopping(recipe) }
                         } else {
