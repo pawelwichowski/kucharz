@@ -81,7 +81,15 @@ fun KucharzApp(
             startDestination = Screen.Ingredients.route,
             modifier = Modifier.padding(padding)
         ) {
-            composable(Screen.Ingredients.route) { IngredientInputScreen() }
+            composable(Screen.Ingredients.route) {
+                IngredientInputScreen(
+                    onSearchCompleted = {
+                        navController.navigate(Screen.Recipes.route) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable(Screen.Recipes.route) { RecipeResultsScreen() }
             composable(Screen.Shopping.route) { ShoppingListScreen() }
             composable(Screen.History.route) { SavedRecipesScreen() }
