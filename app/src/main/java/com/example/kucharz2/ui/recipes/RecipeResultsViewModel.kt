@@ -3,6 +3,7 @@ package com.example.kucharz2.ui.recipes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.kucharz2.data.Recipe
+import com.example.kucharz2.data.RecipeFilters
 import com.example.kucharz2.data.RecipeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,9 @@ class RecipeResultsViewModel @Inject constructor(
     val savedRecipes = repository.observeHistory().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val searchLoading = repository.searchLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val searchError = repository.searchError.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _filters = MutableStateFlow(RecipeFilters())
+    val filters: StateFlow<RecipeFilters> = _filters
 
     private val _selectedRecipe = MutableStateFlow<Recipe?>(null)
     val selectedRecipe: StateFlow<Recipe?> = _selectedRecipe
@@ -53,9 +57,22 @@ class RecipeResultsViewModel @Inject constructor(
         }
     }
 
+    fun setFilters(filters: RecipeFilters) {
+        _filters.value = filters
+    }
+
+    fun applyFilters() {
+        repository.refreshCurrentRecipesInBackground(limit = 100, filters = _filters.value)
+    }
+
+    fun clearFilters() {
+        _filters.value = RecipeFilters()
+        repository.refreshCurrentRecipesInBackground(limit = 100, filters = RecipeFilters())
+    }
+
     fun clearMessage() { _message.value = null }
 
     fun loadRecipesWithMissingIngredients() {
-        repository.refreshCurrentRecipesInBackground(limit = 100)
+        repository.refreshCurrentRecipesInBackground(limit = 100, filters = _filters.value)
     }
 }
