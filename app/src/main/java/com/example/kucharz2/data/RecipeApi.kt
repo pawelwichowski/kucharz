@@ -3,12 +3,31 @@ package com.example.kucharz2.data
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface RecipeApi {
+    @POST("dyn/results")
+    @FormUrlEncoded
+    suspend fun getSupercookResults(
+        @Field("kitchen") kitchen: String,
+        @Field("focus") focus: String = "",
+        @Field("exclude") exclude: String = "",
+        @Field("kw") keyword: String = "",
+        @Field("catname") categoryName: String = "",
+        @Field("start") start: Int = 0,
+        @Field("limit") limit: Int = 50,
+        @Field("fave") favorite: Boolean = false,
+        @Field("app") app: Int = 1,
+        @Field("needsimage") needsImage: Int = 1,
+        @Field("lang") lang: String = "pl",
+        @Field("cv") cv: Int = 2
+    ): Response<ResponseBody>
+
     @GET("recipes")
     suspend fun getRecipes(
         @Query("limit") limit: Int = 20,
