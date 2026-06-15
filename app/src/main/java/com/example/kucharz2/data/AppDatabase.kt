@@ -38,6 +38,9 @@ interface KucharzDao {
     @Query("DELETE FROM shopping_items WHERE checked = 1")
     suspend fun deleteCheckedShoppingItems()
 
+    @Query("DELETE FROM shopping_items")
+    suspend fun deleteAllShoppingItems()
+
     @Query("SELECT * FROM pantry_ingredients ORDER BY name COLLATE NOCASE ASC")
     fun observePantryIngredients(): Flow<List<PantryIngredientEntity>>
 
