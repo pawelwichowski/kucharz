@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.kucharz2.ui.exclusions.PermanentExclusionsScreen
 import com.example.kucharz2.ui.ingredients.IngredientInputScreen
 import com.example.kucharz2.ui.pantry.PantryScreen
 import com.example.kucharz2.ui.recipes.RecipeResultsScreen
@@ -30,6 +31,7 @@ private sealed class Screen(val route: String, val label: String, val icon: Stri
     data object Shopping : Screen("shopping", "Zakupy", "✅")
     data object History : Screen("history", "Zapisane", "⭐")
     data object Pantry : Screen("pantry", "Stałe", "🧂")
+    data object PermanentExclusions : Screen("permanent_exclusions", "Wykluczenia", "🚫")
     data object Settings : Screen("settings", "Ustawienia", "⚙️")
 }
 
@@ -57,7 +59,9 @@ fun KucharzApp(
             NavigationBar {
                 bottomScreens.forEach { screen ->
                     NavigationBarItem(
-                        selected = currentRoute == screen.route || (screen == Screen.Settings && currentRoute == Screen.Pantry.route),
+                        selected = currentRoute == screen.route ||
+                            (screen == Screen.Settings && currentRoute == Screen.Pantry.route) ||
+                            (screen == Screen.Settings && currentRoute == Screen.PermanentExclusions.route),
                         onClick = {
                             navController.navigate(screen.route) {
                                 launchSingleTop = true
@@ -82,12 +86,18 @@ fun KucharzApp(
             composable(Screen.Shopping.route) { ShoppingListScreen() }
             composable(Screen.History.route) { SavedRecipesScreen() }
             composable(Screen.Pantry.route) { PantryScreen() }
+            composable(Screen.PermanentExclusions.route) { PermanentExclusionsScreen() }
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     isDarkTheme = isDarkTheme,
                     onDarkThemeChange = onDarkThemeChange,
                     onOpenPantry = {
                         navController.navigate(Screen.Pantry.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onOpenPermanentExclusions = {
+                        navController.navigate(Screen.PermanentExclusions.route) {
                             launchSingleTop = true
                         }
                     }
