@@ -160,7 +160,7 @@ fun KucharzApp(
     }
 }
 
-private data class SelectedIngredient(
+data class SelectedIngredient(
     val name: String,
     val required: Boolean = false
 )
@@ -567,7 +567,7 @@ private fun ShoppingListScreen(viewModel: ShoppingListViewModel = hiltViewModel(
                         modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(checked = item.checked, onCheckedChange = { viewModel.setShoppingChecked(item, it) })
+                        Checkbox(checked = item.checked, onCheckedChange = { viewModel.setChecked(item, it) })
                         Text(item.name, modifier = Modifier.weight(1f))
                         TextButton(onClick = { viewModel.deleteItem(item) }) { Text("Usuń") }
                     }
