@@ -61,8 +61,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.kucharz2.data.PantryIngredientEntity
 import com.example.kucharz2.data.Recipe
+import com.example.kucharz2.data.RecipeHistoryEntity
 import com.example.kucharz2.data.RecipeRepository
 import com.example.kucharz2.data.ShoppingItemEntity
+import com.example.kucharz2.data.toRecipe
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -77,6 +79,7 @@ private sealed class Screen(val route: String, val label: String, val icon: Stri
     data object Ingredients : Screen("ingredients", "Składniki", "🥕")
     data object Recipes : Screen("recipes", "Przepisy", "🍲")
     data object Shopping : Screen("shopping", "Zakupy", "✅")
+    data object History : Screen("history", "Zapisane", "⭐")
     data object Pantry : Screen("pantry", "Stałe", "🧂")
     data object Settings : Screen("settings", "Ustawienia", "⚙️")
 }
@@ -85,7 +88,7 @@ private val bottomScreens = listOf(
     Screen.Ingredients,
     Screen.Recipes,
     Screen.Shopping,
-    Screen.Pantry,
+    Screen.History,
     Screen.Settings
 )
 
@@ -137,11 +140,13 @@ fun KucharzApp(
             composable(Screen.Ingredients.route) { IngredientInputScreen() }
             composable(Screen.Recipes.route) { RecipeResultsScreen() }
             composable(Screen.Shopping.route) { ShoppingListScreen() }
+            composable(Screen.History.route) { SavedRecipesScreen() }
             composable(Screen.Pantry.route) { PantryScreen() }
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     isDarkTheme = isDarkTheme,
-                    onDarkThemeChange = onDarkThemeChange
+                    onDarkThemeChange = onDarkThemeChange,
+                    onOpenPantry = { navController.navigate(Screen.Pantry.route) }
                 )
             }
         }
@@ -250,7 +255,7 @@ private fun IngredientInputScreen(
             IngredientChips(
                 title = "Stałe składniki uwzględniane w szukaniu",
                 items = state.pantryIngredients,
-                emptyText = "Dodaj stałe składniki w zakładce Stałe.",
+                emptyText = "Dodaj stałe składniki w zakładce Ustawienia.",
                 onRemove = null
             )
         }
@@ -298,10 +303,16 @@ class RecipeResultsViewModel @Inject constructor(
 
     fun openRecipe(recipe: Recipe) {
         _selectedRecipe.value = recipe
-        viewModelScope.launch { repository.addToHistory(recipe) }
     }
 
     fun closeRecipe() { _selectedRecipe.value = null }
+
+    fun saveRecipe(recipe: Recipe) {
+        viewModelScope.launch {
+            repository.addToHistory(recipe)
+            _message.value = "Zapisano przepis: ${recipe.title}"
+        }
+    }
 
     fun addMissingToShopping(recipe: Recipe) {
         viewModelScope.launch {
@@ -417,6 +428,7 @@ private fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewMode
                     RecipeCard(
                         recipe = recipe,
                         onOpen = { viewModel.openRecipe(recipe) },
+                        onSave = { viewModel.saveRecipe(recipe) },
                         onAddMissing = if (recipe.missingIngredients.isNotEmpty()) {
                             { viewModel.addMissingToShopping(recipe) }
                         } else {
@@ -499,6 +511,64 @@ private fun ShoppingListScreen(viewModel: ShoppingListViewModel = hiltViewModel(
 }
 
 @HiltViewModel
+class SavedRecipesViewModel @Inject constructor(
+    private val repository: RecipeRepository
+) : ViewModel() {
+    val savedRecipes = repository.observeHistory().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val _selectedRecipe = MutableStateFlow<Recipe?>(null)
+    val selectedRecipe: StateFlow<Recipe?> = _selectedRecipe
+
+    fun open(item: RecipeHistoryEntity) {
+        _selectedRecipe.value = item.toRecipe()
+    }
+
+    fun close() {
+        _selectedRecipe.value = null
+    }
+
+    fun clear() = viewModelScope.launch { repository.clearHistory() }
+}
+
+@Composable
+private fun SavedRecipesScreen(viewModel: SavedRecipesViewModel = hiltViewModel()) {
+    val savedRecipes by viewModel.savedRecipes.collectAsState()
+    val selected by viewModel.selectedRecipe.collectAsState()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item { HeaderCard("Zapisane przepisy", "Tutaj trafiają przepisy zapisane przyciskiem Zapisz.") }
+        item {
+            OutlinedButton(onClick = viewModel::clear, enabled = savedRecipes.isNotEmpty()) {
+                Text("Wyczyść zapisane")
+            }
+        }
+        if (savedRecipes.isEmpty()) {
+            item { EmptyState("Nie masz jeszcze zapisanych przepisów.") }
+        } else {
+            items(savedRecipes, key = { it.recipeId }) { item ->
+                SavedRecipeCard(item = item, onOpen = { viewModel.open(item) })
+            }
+        }
+    }
+
+    selected?.let { RecipeDetailsDialog(recipe = it, onDismiss = viewModel::close) }
+}
+
+@Composable
+private fun SavedRecipeCard(item: RecipeHistoryEntity, onOpen: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Składników: ${item.ingredients.size}", style = MaterialTheme.typography.bodyMedium)
+            Button(onClick = onOpen) { Text("Otwórz") }
+        }
+    }
+}
+
+@HiltViewModel
 class PantryViewModel @Inject constructor(
     private val repository: RecipeRepository
 ) : ViewModel() {
@@ -560,7 +630,8 @@ private fun PantryScreen(viewModel: PantryViewModel = hiltViewModel()) {
 @Composable
 private fun SettingsScreen(
     isDarkTheme: Boolean,
-    onDarkThemeChange: (Boolean) -> Unit
+    onDarkThemeChange: (Boolean) -> Unit,
+    onOpenPantry: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -594,11 +665,28 @@ private fun SettingsScreen(
                 }
             }
         }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Stałe składniki", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Zarządzaj składnikami, które zawsze masz w domu i które są automatycznie doliczane do wyszukiwania.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Button(onClick = onOpenPantry) { Text("Otwórz stałe składniki") }
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onAddMissing: (() -> Unit)?) {
+private fun RecipeCard(
+    recipe: Recipe,
+    onOpen: () -> Unit,
+    onSave: () -> Unit,
+    onAddMissing: (() -> Unit)?
+) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
@@ -620,6 +708,7 @@ private fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onAddMissing: (() -> 
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpen) { Text("Szczegóły") }
+                OutlinedButton(onClick = onSave) { Text("Zapisz") }
                 if (onAddMissing != null && recipe.missingIngredients.isNotEmpty()) {
                     OutlinedButton(onClick = onAddMissing) { Text("Dodaj braki") }
                 }
