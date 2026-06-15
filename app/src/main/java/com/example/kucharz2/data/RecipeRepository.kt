@@ -46,6 +46,7 @@ class RecipeRepository @Inject constructor(
 
     fun observeShoppingItems() = dao.observeShoppingItems()
     fun observePantryIngredients() = dao.observePantryIngredients()
+    fun observePermanentExcludedIngredients() = dao.observePermanentExcludedIngredients()
     fun observeHistory() = dao.observeHistory()
 
     fun refreshRecipesInBackground(
@@ -93,10 +94,11 @@ class RecipeRepository @Inject constructor(
         filters: RecipeFilters = RecipeFilters()
     ) = withContext(Dispatchers.IO) {
         val pantry = if (includePantryIngredients) dao.getPantryIngredientsOnce().map { it.name } else emptyList()
+        val permanentExclusions = dao.getPermanentExcludedIngredientsOnce().map { it.name }
         val available = normalizeInput(userIngredients + pantry)
         val apiKitchenIngredients = IngredientQueryExpander.expandForApiQuery(available)
         val required = normalizeInput(requiredIngredients + listOfNotNull(filters.mainIngredient))
-        val excluded = normalizeInput(filters.excludedIngredients)
+        val excluded = normalizeInput(filters.excludedIngredients + permanentExclusions)
         _availableIngredients.value = available
 
         val response = api.getSupercookResults(
@@ -156,6 +158,15 @@ class RecipeRepository @Inject constructor(
         dao.deletePantryIngredient(id)
     }
 
+    suspend fun addPermanentExcludedIngredient(name: String) = withContext(Dispatchers.IO) {
+        val clean = name.cleanupName()
+        if (clean.isNotBlank()) dao.insertPermanentExcludedIngredient(PermanentExcludedIngredientEntity(name = clean))
+    }
+
+    suspend fun deletePermanentExcludedIngredient(id: Long) = withContext(Dispatchers.IO) {
+        dao.deletePermanentExcludedIngredient(id)
+    }
+
     suspend fun addToHistory(recipe: Recipe) = withContext(Dispatchers.IO) {
         dao.upsertHistory(recipe.toHistoryEntity())
     }
@@ -177,6 +188,7 @@ class RecipeRepository @Inject constructor(
         MissingIngredientMode.EXACT_1 -> missingCount == 1
         MissingIngredientMode.MAX_2 -> missingCount <= 2
         MissingIngredientMode.EXACT_2 -> missingCount == 2
+        MissingIngredientMode.AT_LEAST_2 -> missingCount >= 2
     }
 
     private fun List<Recipe>.sortByUsedIngredients(mode: UsedIngredientsSortMode?): List<Recipe> = when (mode) {
