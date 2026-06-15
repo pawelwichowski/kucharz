@@ -14,14 +14,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -42,9 +38,8 @@ fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
     val searchLoading by viewModel.searchLoading.collectAsState()
     val searchError by viewModel.searchError.collectAsState()
     val filters by viewModel.filters.collectAsState()
-    var showMissingRecipes by rememberSaveable { mutableStateOf(false) }
 
-    val visibleRecipes = if (showMissingRecipes) nearRecipes else exactRecipes
+    val visibleRecipes = exactRecipes + nearRecipes
     val savedRecipeIds = savedRecipes.map { it.recipeId }.toSet()
 
     Column(Modifier.fillMaxSize()) {
@@ -57,32 +52,18 @@ fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
         ) {
             item {
                 HeaderCard(
-                    title = if (showMissingRecipes) "Przepisy z brakującymi składnikami" else "Pełne przepisy",
-                    subtitle = if (available.isEmpty()) "Najpierw wyszukaj po składnikach." else "Dostępne: ${available.joinToString()}"
-                )
-            }
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Pokaż tylko przepisy z brakującymi składnikami", modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = showMissingRecipes,
-                            enabled = !searchLoading,
-                            onCheckedChange = { enabled ->
-                                showMissingRecipes = enabled
-                                if (enabled) viewModel.loadRecipesWithMissingIngredients()
-                            }
-                        )
+                    title = "Wyniki przepisów",
+                    subtitle = if (available.isEmpty()) {
+                        "Najpierw wyszukaj po składnikach."
+                    } else {
+                        "Dostępne: ${available.joinToString()}"
                     }
-                }
+                )
             }
             item {
                 RecipeFiltersCard(
                     filters = filters,
+                    availableIngredients = available,
                     onFiltersChange = viewModel::setFilters,
                     onApply = viewModel::applyFilters,
                     onClear = viewModel::clearFilters
@@ -100,7 +81,7 @@ fun RecipeResultsScreen(viewModel: RecipeResultsViewModel = hiltViewModel()) {
                 }
             }
             if (!searchLoading && visibleRecipes.isEmpty()) {
-                item { EmptyState(if (showMissingRecipes) "Nie znaleziono podobnych przepisów." else "Nie znaleziono pełnych przepisów.") }
+                item { EmptyState("Nie znaleziono przepisów dla aktualnych składników i filtrów.") }
             } else {
                 items(visibleRecipes, key = { it.id }) { recipe ->
                     RecipeCard(
