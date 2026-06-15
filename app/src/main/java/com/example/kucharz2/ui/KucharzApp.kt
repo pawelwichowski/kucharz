@@ -1,5 +1,6 @@
 package com.example.kucharz2.ui
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +71,7 @@ import com.example.kucharz2.data.ShoppingItemEntity
 import com.example.kucharz2.data.StandardIngredientCatalog
 import com.example.kucharz2.data.toRecipe
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -78,6 +80,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val INGREDIENT_PREFS_NAME = "ingredient_input_state"
+private const val PREF_SELECTED_INGREDIENTS = "selected_ingredients"
+private const val PREF_REQUIRED_PANTRY = "required_pantry_ingredients"
+private const val PREF_INCLUDE_PANTRY = "include_pantry_ingredients"
+private const val SAVED_ITEM_SEPARATOR = "\u001E"
+private const val SAVED_FIELD_SEPARATOR = "\u001F"
 
 private sealed class Screen(val route: String, val label: String, val icon: String) {
     data object Ingredients : Screen("ingredients", "Składniki", "🥕")
@@ -164,9 +173,11 @@ data class IngredientInputUiState(
 
 @HiltViewModel
 class IngredientInputViewModel @Inject constructor(
-    private val repository: RecipeRepository
+    private val repository: RecipeRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
-    private val editableState = MutableStateFlow(IngredientInputUiState())
+    private val preferences = context.getSharedPreferences(INGREDIENT_PREFS_NAME, Context.MODE_PRIVATE)
+    private val editableState = MutableStateFlow(loadSavedState())
 
     val uiState: StateFlow<IngredientInputUiState> = combine(
         editableState,
@@ -177,14 +188,14 @@ class IngredientInputViewModel @Inject constructor(
             pantryIngredients = pantryNames,
             requiredPantryIngredients = state.requiredPantryIngredients.intersect(pantryNames.toSet())
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IngredientInputUiState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), loadSavedState())
 
     val searchLoading = repository.searchLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val searchError = repository.searchError.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun onQueryChange(value: String) = editableState.update { it.copy(query = value, error = null) }
 
-    fun selectIngredient(name: String) = editableState.update { state ->
+    fun selectIngredient(name: String) = updateSavedState { state ->
         if (!StandardIngredientCatalog.contains(name) || state.ingredients.any { it.name.equals(name, ignoreCase = true) }) {
             state.copy(query = "", error = null)
         } else {
@@ -196,11 +207,11 @@ class IngredientInputViewModel @Inject constructor(
         }
     }
 
-    fun removeIngredient(name: String) = editableState.update { state ->
+    fun removeIngredient(name: String) = updateSavedState { state ->
         state.copy(ingredients = state.ingredients.filterNot { it.name == name })
     }
 
-    fun toggleIngredientRequired(name: String, required: Boolean) = editableState.update { state ->
+    fun toggleIngredientRequired(name: String, required: Boolean) = updateSavedState { state ->
         state.copy(
             ingredients = state.ingredients.map { ingredient ->
                 if (ingredient.name == name) ingredient.copy(required = required) else ingredient
@@ -209,15 +220,24 @@ class IngredientInputViewModel @Inject constructor(
         )
     }
 
-    fun togglePantryRequired(name: String, required: Boolean) = editableState.update { state ->
+    fun togglePantryRequired(name: String, required: Boolean) = updateSavedState { state ->
         state.copy(
             requiredPantryIngredients = if (required) state.requiredPantryIngredients + name else state.requiredPantryIngredients - name,
             error = null
         )
     }
 
-    fun setIncludePantryIngredients(enabled: Boolean) = editableState.update {
+    fun setIncludePantryIngredients(enabled: Boolean) = updateSavedState {
         it.copy(includePantryIngredients = enabled, error = null)
+    }
+
+    fun clearSelectedIngredients() = updateSavedState {
+        it.copy(
+            query = "",
+            ingredients = emptyList(),
+            requiredPantryIngredients = emptySet(),
+            error = null
+        )
     }
 
     fun search() {
@@ -239,6 +259,49 @@ class IngredientInputViewModel @Inject constructor(
             includePantryIngredients = state.includePantryIngredients
         )
     }
+
+    private fun updateSavedState(transform: (IngredientInputUiState) -> IngredientInputUiState) {
+        editableState.update { current ->
+            transform(current).also { saveState(it) }
+        }
+    }
+
+    private fun loadSavedState(): IngredientInputUiState {
+        val selectedIngredients = preferences.getString(PREF_SELECTED_INGREDIENTS, null)
+            ?.toSelectedIngredients()
+            .orEmpty()
+        val requiredPantry = preferences.getStringSet(PREF_REQUIRED_PANTRY, emptySet()).orEmpty().toSet()
+        val includePantry = preferences.getBoolean(PREF_INCLUDE_PANTRY, true)
+
+        return IngredientInputUiState(
+            ingredients = selectedIngredients,
+            requiredPantryIngredients = requiredPantry,
+            includePantryIngredients = includePantry
+        )
+    }
+
+    private fun saveState(state: IngredientInputUiState) {
+        preferences.edit()
+            .putString(PREF_SELECTED_INGREDIENTS, state.ingredients.toSavedString())
+            .putStringSet(PREF_REQUIRED_PANTRY, state.requiredPantryIngredients)
+            .putBoolean(PREF_INCLUDE_PANTRY, state.includePantryIngredients)
+            .apply()
+    }
+
+    private fun List<SelectedIngredient>.toSavedString(): String = joinToString(SAVED_ITEM_SEPARATOR) { ingredient ->
+        val requiredFlag = if (ingredient.required) "1" else "0"
+        "$requiredFlag$SAVED_FIELD_SEPARATOR${ingredient.name}"
+    }
+
+    private fun String.toSelectedIngredients(): List<SelectedIngredient> = split(SAVED_ITEM_SEPARATOR)
+        .mapNotNull { item ->
+            val parts = item.split(SAVED_FIELD_SEPARATOR, limit = 2)
+            if (parts.size != 2 || parts[1].isBlank()) {
+                null
+            } else {
+                SelectedIngredient(name = parts[1], required = parts[0] == "1")
+            }
+        }
 }
 
 @Composable
@@ -248,6 +311,7 @@ private fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltView
     val searchError by viewModel.searchError.collectAsState()
     val excluded = state.ingredients.map { it.name }.toSet()
     val suggestions = StandardIngredientCatalog.suggestions(state.query, excluded)
+    val hasSelectedItems = state.ingredients.isNotEmpty() || state.requiredPantryIngredients.isNotEmpty()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -286,6 +350,15 @@ private fun IngredientInputScreen(viewModel: IngredientInputViewModel = hiltView
                 onRequiredChange = viewModel::toggleIngredientRequired,
                 onRemove = viewModel::removeIngredient
             )
+        }
+        item {
+            OutlinedButton(
+                onClick = viewModel::clearSelectedIngredients,
+                enabled = hasSelectedItems,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Wyczyść listę")
+            }
         }
         item {
             Card(Modifier.fillMaxWidth()) {
