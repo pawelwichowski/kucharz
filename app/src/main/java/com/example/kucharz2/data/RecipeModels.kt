@@ -43,6 +43,13 @@ data class PantryIngredientEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "permanent_excluded_ingredients", indices = [Index(value = ["name"], unique = true)])
+data class PermanentExcludedIngredientEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "recipe_history")
 data class RecipeHistoryEntity(
     @PrimaryKey val recipeId: String,
