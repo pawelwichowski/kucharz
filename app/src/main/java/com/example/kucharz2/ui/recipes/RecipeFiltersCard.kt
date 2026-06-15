@@ -85,7 +85,7 @@ fun RecipeFiltersCard(
                     singleLine = true
                 )
                 if (excludeQuery.isNotBlank()) {
-                    Chips(excludeSuggestions, selectedValue = null) { suggestion ->
+                    TextChips(excludeSuggestions) { suggestion ->
                         onFiltersChange(filters.copy(excludedIngredients = filters.excludedIngredients + suggestion))
                         excludeQuery = ""
                     }
@@ -144,13 +144,13 @@ private fun ChoiceSection(
     onSelected: (String?) -> Unit
 ) {
     Section(title, value, expandedSection == section, onToggle) {
-        Chips(options, selectedValue, onSelected)
+        OptionChips(options, selectedValue, onSelected)
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Chips(options: List<FilterOption>, selectedValue: String?, onSelected: (String?) -> Unit) {
+private fun OptionChips(options: List<FilterOption>, selectedValue: String?, onSelected: (String?) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { option ->
             val selected = selectedValue == option.value
@@ -161,10 +161,10 @@ private fun Chips(options: List<FilterOption>, selectedValue: String?, onSelecte
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Chips(options: List<String>, selectedValue: String?, onSelected: (String) -> Unit) {
+private fun TextChips(options: List<String>, onSelected: (String) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { option ->
-            FilterChip(selected = selectedValue == option, onClick = { onSelected(option) }, label = { Text(option) })
+            FilterChip(selected = false, onClick = { onSelected(option) }, label = { Text(option) })
         }
     }
 }
