@@ -357,7 +357,6 @@ object SupercookDetailsParser {
         val root = JSONObject(text)
         val recipeObject = root.optJSONObject("recipe")
         val detailIngredients = root.optJSONArray("ingredients").toIngredientLines()
-        val detailMissing = recipeObject?.optJSONArray("needs").toStringList()
         val displayUrl = recipeObject?.optString("displayurl")?.takeIf { it.isNotBlank() && it != "null" }
         val realUrl = recipeObject?.optString("hash")?.takeIf { it.isNotBlank() && it != "null" }
         val title = recipeObject?.optString("title")?.takeIf { it.isNotBlank() && it != "null" } ?: fallback.title
@@ -365,12 +364,10 @@ object SupercookDetailsParser {
 
         return fallback.copy(
             title = title,
-            ingredients = detailIngredients.ifEmpty { fallback.ingredients },
             imageUrl = imageUrl,
             sourceUrl = realUrl ?: fallback.sourceUrl,
             tags = listOfNotNull(displayUrl).ifEmpty { fallback.tags },
-            missingIngredients = detailMissing.ifEmpty { fallback.missingIngredients },
-            missingCount = detailMissing.ifEmpty { fallback.missingIngredients }.size
+            displayIngredientLines = detailIngredients
         )
     }
 
@@ -381,16 +378,6 @@ object SupercookDetailsParser {
                 val obj = optJSONObject(i)
                 val line = obj?.optString("line")?.cleanupName().orEmpty()
                 if (line.isNotBlank() && line != "null") add(line)
-            }
-        }
-    }
-
-    private fun JSONArray?.toStringList(): List<String> {
-        if (this == null) return emptyList()
-        return buildList {
-            for (i in 0 until length()) {
-                val value = optString(i).cleanupName()
-                if (value.isNotBlank() && value != "null") add(value)
             }
         }
     }
