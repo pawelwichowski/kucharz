@@ -27,6 +27,7 @@ class RecipeRepository @Inject constructor(
     private var lastUserIngredients: List<String> = emptyList()
     private var lastRequiredIngredients: List<String> = emptyList()
     private var lastIncludePantryIngredients: Boolean = true
+    private var lastFilters: RecipeFilters = RecipeFilters()
 
     private val _availableIngredients = MutableStateFlow<List<String>>(emptyList())
     val availableIngredients: StateFlow<List<String>> = _availableIngredients.asStateFlow()
@@ -51,16 +52,18 @@ class RecipeRepository @Inject constructor(
         userIngredients: List<String>,
         requiredIngredients: List<String> = emptyList(),
         limit: Int = 50,
-        includePantryIngredients: Boolean = true
+        includePantryIngredients: Boolean = true,
+        filters: RecipeFilters = RecipeFilters()
     ) {
         lastUserIngredients = userIngredients
         lastRequiredIngredients = requiredIngredients
         lastIncludePantryIngredients = includePantryIngredients
+        lastFilters = filters
         refreshJob?.cancel()
         refreshJob = searchScope.launch {
             _searchLoading.value = true
             _searchError.value = null
-            runCatching { refreshRecipes(userIngredients, requiredIngredients, limit, includePantryIngredients) }
+            runCatching { refreshRecipes(userIngredients, requiredIngredients, limit, includePantryIngredients, filters) }
                 .onFailure { throwable ->
                     _searchError.value = throwable.message ?: "Nie udało się pobrać przepisów."
                 }
@@ -68,12 +71,13 @@ class RecipeRepository @Inject constructor(
         }
     }
 
-    fun refreshCurrentRecipesInBackground(limit: Int = 100) {
+    fun refreshCurrentRecipesInBackground(limit: Int = 100, filters: RecipeFilters = lastFilters) {
         refreshRecipesInBackground(
             userIngredients = lastUserIngredients,
             requiredIngredients = lastRequiredIngredients,
             limit = limit,
-            includePantryIngredients = lastIncludePantryIngredients
+            includePantryIngredients = lastIncludePantryIngredients,
+            filters = filters
         )
     }
 
@@ -85,17 +89,20 @@ class RecipeRepository @Inject constructor(
         userIngredients: List<String>,
         requiredIngredients: List<String> = emptyList(),
         limit: Int = 50,
-        includePantryIngredients: Boolean = true
+        includePantryIngredients: Boolean = true,
+        filters: RecipeFilters = RecipeFilters()
     ) = withContext(Dispatchers.IO) {
         val pantry = if (includePantryIngredients) dao.getPantryIngredientsOnce().map { it.name } else emptyList()
         val available = normalizeInput(userIngredients + pantry)
-        val required = normalizeInput(requiredIngredients)
+        val required = normalizeInput(requiredIngredients + listOfNotNull(filters.mainIngredient))
+        val excluded = normalizeInput(filters.excludedIngredients)
         _availableIngredients.value = available
 
         val response = api.getSupercookResults(
             kitchen = available.joinToString(","),
             focus = required.joinToString(","),
-            exclude = "",
+            exclude = excluded.joinToString(","),
+            categoryName = filters.categoryNames(),
             start = 0,
             limit = limit,
             lang = "pl"
@@ -106,10 +113,13 @@ class RecipeRepository @Inject constructor(
         }
 
         val parsed = SupercookParser.parse(response.body())
+            .filter { recipe -> filters.maxIngredients?.let { recipe.ingredients.size <= it } ?: true }
             .sortedWith(compareBy<Recipe> { it.missingCount }.thenBy { it.title.lowercase() })
 
         _exactRecipes.value = parsed.filter { it.missingCount == 0 }
-        _nearRecipes.value = parsed.filter { it.missingCount in 1..2 }
+        _nearRecipes.value = parsed.filter { recipe ->
+            if (filters.oneMissingIngredientOnly) recipe.missingCount == 1 else recipe.missingCount in 1..2
+        }
     }
 
     suspend fun getRecipeDetails(recipe: Recipe): Recipe = withContext(Dispatchers.IO) {
