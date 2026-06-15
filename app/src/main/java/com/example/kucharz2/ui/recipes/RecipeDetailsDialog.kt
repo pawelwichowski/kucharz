@@ -21,6 +21,7 @@ import com.example.kucharz2.ui.components.SectionTitle
 @Composable
 fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current
+    val displayIngredients = recipe.displayIngredientLines.ifEmpty { recipe.ingredients }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -44,9 +45,9 @@ fun RecipeDetailsDialog(recipe: Recipe, onDismiss: () -> Unit) {
                     SectionTitle("Brakujące składniki")
                     recipe.missingIngredients.forEach { Text("• $it", color = MaterialTheme.colorScheme.error) }
                 }
-                if (recipe.ingredients.isNotEmpty()) {
-                    SectionTitle("Składniki z wyniku")
-                    recipe.ingredients.forEach { Text("• $it") }
+                if (displayIngredients.isNotEmpty()) {
+                    SectionTitle("Składniki")
+                    displayIngredients.forEach { Text("• $it") }
                 }
             }
         },
