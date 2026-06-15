@@ -9,8 +9,8 @@ data class RecipeFilters(
     val oneMissingIngredientOnly: Boolean = false,
     val videoOnly: Boolean = false,
     val maxIngredients: Int? = null,
-    val minRating: Int? = null,
-    val maxReadyMinutes: Int? = null
+    val minRatingTag: String? = null,
+    val readyTimeTag: String? = null
 ) {
     val hasActiveFilters: Boolean
         get() = mainIngredient != null ||
@@ -21,13 +21,15 @@ data class RecipeFilters(
             oneMissingIngredientOnly ||
             videoOnly ||
             maxIngredients != null ||
-            minRating != null ||
-            maxReadyMinutes != null
+            minRatingTag != null ||
+            readyTimeTag != null
 
     fun categoryNames(): String = listOfNotNull(
         mealTypeTag,
         cuisineTag,
         dietTag,
+        readyTimeTag,
+        minRatingTag,
         if (videoOnly) "schema_video" else null
     ).joinToString(",")
 }
@@ -80,5 +82,24 @@ object RecipeFilterOptions {
         FilterOption("Wegetariańska", "diet_vegetarian"),
         FilterOption("Bez laktozy", "diet_lactose_free"),
         FilterOption("Bezglutenowa", "diet_gluten_free")
+    )
+
+    val readyTimes = listOf(
+        FilterOption("Do 15 min", "schema_ready_in_under_15mins"),
+        FilterOption("Do 30 min", "schema_ready_in_under_30mins"),
+        FilterOption("Do 45 min", "schema_ready_in_under_45mins"),
+        FilterOption("Do 1 godziny", "schema_ready_in_under_1hr")
+    )
+
+    val ratings = listOf(
+        FilterOption("3+ gwiazdki", "schema_3plus_star_rating"),
+        FilterOption("4+ gwiazdki", "schema_4plus_star_rating"),
+        FilterOption("5 gwiazdek", "schema_5star_rating")
+    )
+
+    val maxIngredients = listOf(
+        FilterOption("≤ 3", "3"),
+        FilterOption("≤ 5", "5"),
+        FilterOption("≤ 10", "10")
     )
 }
