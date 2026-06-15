@@ -2,6 +2,7 @@ package com.example.kucharz2.ui.ingredients
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.kucharz2.data.RecipeRepository
 import com.example.kucharz2.data.StandardIngredientCatalog
 import dagger.hilt.android.lifecycle.HiltViewModel
