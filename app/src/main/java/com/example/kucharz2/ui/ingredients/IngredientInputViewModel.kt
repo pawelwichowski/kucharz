@@ -38,6 +38,7 @@ class IngredientInputViewModel @Inject constructor(
 
     val searchLoading = repository.searchLoading.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val searchError = repository.searchError.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val successfulSearchVersion = repository.successfulSearchVersion.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     fun onQueryChange(value: String) = editableState.update { it.copy(query = value, error = null) }
 
